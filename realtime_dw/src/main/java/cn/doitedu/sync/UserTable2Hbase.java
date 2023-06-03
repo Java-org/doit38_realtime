@@ -12,7 +12,6 @@ public class UserTable2Hbase {
 
     public static void main(String[] args) {
 
-
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt/");
