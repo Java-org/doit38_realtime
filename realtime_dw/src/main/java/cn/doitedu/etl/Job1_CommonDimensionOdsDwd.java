@@ -1,5 +1,7 @@
 package cn.doitedu.etl;
 
+import cn.doitedu.udfs.GeoHashUDF;
+import cn.doitedu.udfs.Map2JsonStrUDF;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -31,8 +33,8 @@ public class Job1_CommonDimensionOdsDwd {
                         + "     session_id   string,                            "
                         + "     eventId      string,                            "
                         + "     actionTime   bigint,                            "
-                        + "     lat          double,                            "
-                        + "     lng          double,                            "
+                        + "     lat          double ,                           "
+                        + "     lng          double ,                           "
                         + "     release_channel   string,                       "
                         + "     device_type       string,                       "
                         + "     properties   map<string,string>,                "
@@ -136,19 +138,19 @@ public class Job1_CommonDimensionOdsDwd {
 
         // 4. 建表映射  hbase中的维表：注册信息表
         tenv.executeSql(
-                " create table user_hbase(                       "+
+                " create table user_hbase(                        "+
                         "    username STRING,                        "+
                         "    f1 ROW<                                 "+
                         "       id BIGINT,                           "+
-                        " 	    phone STRING,                          "+
-                        " 	    status INT,                            "+
-                        " 	    create_time TIMESTAMP(3),              "+
+                        " 	    phone STRING,                        "+
+                        " 	    status INT,                          "+
+                        " 	    create_time TIMESTAMP(3),            "+
                         "       gender INT,                          "+
-                        " 	    birthday DATE,                         "+
-                        " 	    province STRING,                       "+
-                        " 	    city STRING,                           "+
-                        " 	    job STRING,                            "+
-                        " 	    source_type INT>                       "+
+                        " 	    birthday DATE,                       "+
+                        " 	    province STRING,                     "+
+                        " 	    city STRING,                         "+
+                        " 	    job STRING,                          "+
+                        " 	    source_type INT>                     "+
                         " ) WITH(                                    "+
                         "     'connector' = 'hbase-2.2',             "+
                         "     'table-name' = 'dim_user_info',        "+
@@ -160,7 +162,7 @@ public class Job1_CommonDimensionOdsDwd {
         // 5. 建表映射  hbase中的维表：页面信息表
         tenv.executeSql(
                 " create table page_hbase(                        "+
-                        "    url STRING,                             "+
+                        "    url_prefix STRING,                      "+
                         "    f  ROW<                                 "+
                         "       sv STRING,                           "+
                         " 	    pt STRING>                           "+
@@ -174,8 +176,8 @@ public class Job1_CommonDimensionOdsDwd {
 
         // 6. 建表映射  hbase中的维表：地域信息表
         tenv.executeSql(
-                " create table page_hbase(                        "+
-                        "    url STRING,                             "+
+                " create table geo_hbase(                        "+
+                        "    geohash STRING,                        "+
                         "    f  ROW<                                 "+
                         "       p STRING,                           "+
                         "       c STRING,                           "+
@@ -189,10 +191,76 @@ public class Job1_CommonDimensionOdsDwd {
 
 
         // 7. 进行关联
+        tenv.createTemporaryFunction("geo", GeoHashUDF.class);
+        tenv.executeSql(
+                " CREATE TEMPORARY VIEW wide_view AS                                                                                                              "
+                        // 延迟重试的hint,  flink-1.16.0增强的新特性：lookup查询支持延迟重试
+                        +" SELECT   /*+ LOOKUP('table'='user_hbase', 'retry-predicate'='lookup_miss', 'retry-strategy'='fixed_delay', 'fixed-delay'='5s','max-attempts'='3') */ "
+                        +" u.f1.id as user_id,                                                                                                                              "
+                        +" e.username,                                                                                                                                     "
+                        +" e.session_id,                                                                                                                                   "
+                        +" e.eventId as event_id,                                                                                                                          "
+                        +" e.actionTime as action_time,                                                                                                                    "
+                        +" e.lat,e.lng,                                                                                                                                    "
+                        +" e.release_channel,                                                                                                                              "
+                        +" e.device_type,                                                                                                                                  "
+                        +" e.properties,                                                                                                                                   "
+                        +" u.f1.phone as register_phone,                                                                                                                    "
+                        +" u.f1.status as user_status,                                                                                                                      "
+                        +" u.f1.create_time as register_time,                                                                                                               "
+                        +" u.f1.gender as register_gender,                                                                                                                  "
+                        +" u.f1.birthday as register_birthday,                                                                                                              "
+                        +" u.f1.province as register_province,                                                                                                              "
+                        +" u.f1.city as register_city,                                                                                                                      "
+                        +" u.f1.job as register_job,                                                                                                                        "
+                        +" u.f1.source_type as register_source_type,                                                                                                        "
+                        +" g.f.p as gps_province ,                                                                                                                         "
+                        +" g.f.c as gps_city,                                                                                                                              "
+                        +" g.f.r as gps_region,                                                                                                                            "
+                        +" p.f.pt as page_type,                                                                                                                            "
+                        +" p.f.sv as page_service                                                                                                                          "
+                        +" FROM events_source AS e                                                                                                                         "
+                        +" LEFT JOIN user_hbase FOR SYSTEM_TIME AS OF  e.proc_time AS u  ON e.username = u.username                                                         "
+                        // geohash，反转关联hbase中的rowkey（因为hbase中就是反转存储的，避免热点问题）
+                        +" LEFT JOIN geo_hbase FOR SYSTEM_TIME AS OF e.proc_time   AS g ON REVERSE(geo(e.lat,e.lng)) = g.geohash                                             "
+                        +" LEFT JOIN page_hbase FOR SYSTEM_TIME AS OF e.proc_time  AS p ON regexp_extract(e.properties['url'],'(^.*/).*?') = p.url_prefix                   "
+        );
+
+        // 8.将关联成功的结果，写入kafka的目标topic映射表
+        tenv.executeSql("insert into dwd_kafka select * from wide_view");
 
 
-
-
+        // 9.将关联成功的结果，写入doris的目标映射表
+        tenv.createTemporaryFunction("toJson", Map2JsonStrUDF.class);
+        tenv.executeSql("INSERT INTO dwd_doris                                     "
+                + " SELECT                                                                         "
+                + "     gps_province         ,                                                     "
+                + "     gps_city             ,                                                     "
+                + "     gps_region           ,                                                     "
+                + "     TO_DATE(DATE_FORMAT(TO_TIMESTAMP_LTZ(action_time, 3),'yyyy-MM-dd')) as dt,  "
+                + "     user_id              ,                                                     "
+                + "     username             ,                                                     "
+                + "     session_id           ,                                                     "
+                + "     event_id             ,                                                     "
+                + "     action_time           ,                                                     "
+                + "     lat                  ,                                                     "
+                + "     lng                  ,                                                     "
+                + "     release_channel      ,                                                     "
+                + "     device_type          ,                                                     "
+                + "     toJson(properties) as properties     ,                                     "
+                + "     register_phone       ,                                                     "
+                + "     user_status          ,                                                     "
+                + "     register_time        ,                                                     "
+                + "     register_gender      ,                                                     "
+                + "     register_birthday    ,                                                     "
+                + "     register_province    ,                                                     "
+                + "     register_city        ,                                                     "
+                + "     register_job         ,                                                     "
+                + "     register_source_type ,                                                     "
+                + "     page_type            ,                                                     "
+                + "     page_service                                                               "
+                + " FROM   wide_view                                                               "
+        );
 
 
     }
