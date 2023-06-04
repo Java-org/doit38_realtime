@@ -67,16 +67,16 @@ public class Job4_PVUV_3 {
 
         // 2. 创建映射表，映射mysql中的 流量看板表1
         tenv.executeSql(
-                " CREATE TABLE dashboard_traffic_3 (            "
-                        +"   window_start timestamp(3),            "
-                        +"   window_end timestamp(3),            "
-                        +"   page_type   STRING,                      "
+                " CREATE TABLE dashboard_traffic_3 (              "
+                        +"   window_start timestamp(3),              "
+                        +"   window_end timestamp(3),                "
+                        +"   page_type   STRING,                     "
                         +"   page_url   STRING,                      "
-                        +"   uv_amt   BIGINT                        "
+                        +"   uv_amt   BIGINT                         "
                         +" ) WITH (                                          "
                         +"    'connector' = 'jdbc',                          "
-                        +"    'url' = 'jdbc:mysql://doitedu:3306/doit38',     "
-                        +"    'table-name' = 'dashboard_traffic_3',           "
+                        +"    'url' = 'jdbc:mysql://doitedu:3306/doit38',    "
+                        +"    'table-name' = 'dashboard_traffic_3',          "
                         +"    'username' = 'root',                           "
                         +"    'password' = 'root'                            "
                         +" )                                                 "
