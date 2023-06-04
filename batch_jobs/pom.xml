@@ -11,8 +11,6 @@
 
     <artifactId>batch_jobs</artifactId>
 
-
-
     <properties>
         <scala.version>2.12.12</scala.version>
         <spark.version>3.1.2</spark.version>
