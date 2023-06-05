@@ -67,12 +67,12 @@ public class Job4_PVUV_3 {
 
         // 2. 创建映射表，映射mysql中的 流量看板表1
         tenv.executeSql(
-                " CREATE TABLE dashboard_traffic_3 (              "
-                        +"   window_start timestamp(3),              "
-                        +"   window_end timestamp(3),                "
-                        +"   page_type   STRING,                     "
-                        +"   page_url   STRING,                      "
-                        +"   uv_amt   BIGINT                         "
+                " CREATE TABLE dashboard_traffic_3 (                      "
+                        +"   window_start timestamp(3),                      "
+                        +"   window_end timestamp(3),                        "
+                        +"   page_type   STRING,                             "
+                        +"   page_url   STRING,                              "
+                        +"   uv_amt   BIGINT                                 "
                         +" ) WITH (                                          "
                         +"    'connector' = 'jdbc',                          "
                         +"    'url' = 'jdbc:mysql://doitedu:3306/doit38',    "
@@ -85,36 +85,36 @@ public class Job4_PVUV_3 {
 
         // 3. 计算指标，每5分钟内，每种页面类型中，访问人数最多的前10个页面
         tenv.executeSql(
-                " SELECT \n" +
-                        "     window_start\n" +
-                        "\t ,window_end\n" +
-                        "\t ,page_type\n" +
-                        "\t ,page,uv_amt                                                      \n" +
-                        " FROM                                                                                                   \n" +
-                        " (                                                                                                      \n" +
-                        "     SELECT                                                                                             \n" +
-                        "        window_start\n" +
-                        "\t\t,window_end\n" +
-                        "\t\t,page_type\n" +
-                        "\t\t,page\n" +
-                        "\t\t,uv_amt\n" +
-                        "\t\t,row_number() over(partition by window_start,window_end,page_type order by uv_amt desc) as rn    \n" +
-                        "     FROM (                                                                                             \n" +
-                        "         -- 先在时间窗口中，聚合计算每个页面的访问人数                                                  \n" +
-                        "         SELECT                                                                                         \n" +
-                        "           window_start\n" +
-                        "\t\t   ,window_end\n" +
-                        "\t\t   ,page_type\n" +
-                        "\t\t   ,regexp_extract(properties['url'],'^(.*?\\.html).*?') as page\n" +
-                        "\t\t   ,count(distinct user_id) as uv_amt                                                            \n" +
-                        "         FROM TABLE(                                                                                    \n" +
-                        "           TUMBLE(TABLE dwd_kafka,DESCRIPTOR(row_time),INTERVAL '5' MINUTE)                             \n" +
-                        "         )                                                                                              \n" +
-                        "         GROUP BY                                                                                       \n" +
-                        "            window_start,window_end,page_type,regexp_extract(properties['url'],'^(.*?\\.html).*?')          \n" +
-                        "     ) o1                                                                                               \n" +
-                        " ) o2                                                                                                   \n" +
-                        " WHERE rn<=10    "
+                " INSERT INTO dashboard_traffic_3  SELECT       " +
+                        "     window_start      " +
+                        "     ,window_end       " +
+                        "     ,page_type        " +
+                        "     ,page,uv_amt      " +
+                        " FROM                  " +
+                        " (                     " +
+                        "     SELECT            " +
+                        "        window_start   " +
+                        "        ,window_end    " +
+                        "        ,page_type     " +
+                        "        ,page          " +
+                        "        ,uv_amt        " +
+                        "        ,row_number() over(partition by window_start,window_end,page_type order by uv_amt desc) as rn   " +
+                        "     FROM (                                                                                             " +
+                        "         -- 先在时间窗口中，聚合计算每个页面的访问人数                                                           " +
+                        "         SELECT                                                                                         " +
+                        "           window_start                                                                                 " +
+                        "          ,window_end                                                                                   " +
+                        "          ,page_type                                                                                    " +
+                        "          ,regexp_extract(properties['url'],'^(.*?\\.html).*?') as page                                 " +
+                        "          ,count(distinct user_id) as uv_amt                                                            " +
+                        "         FROM TABLE(                                                                                    " +
+                        "           TUMBLE(TABLE dwd_kafka,DESCRIPTOR(row_time),INTERVAL '5' MINUTE)                             " +
+                        "         )                                                                                              " +
+                        "         GROUP BY                                                                                       " +
+                        "            window_start,window_end,page_type,regexp_extract(properties['url'],'^(.*?\\.html).*?')      " +
+                        "     ) o1                                                                                               " +
+                        " ) o2                                                                                                   " +
+                        " WHERE rn<=10                                                                                           "
         ).print();
 
     }
