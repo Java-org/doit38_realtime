@@ -95,7 +95,6 @@ public class Job2_TrafficOverviewOlapAggregate {
         // 3. 计算逻辑sql
         tenv.createTemporaryFunction("time_trunc", TimeStampTruncate2.class);
         tenv.executeSql(
-
                 " insert into sink_doris                                                                                         "+
                         " with tmp as (                                                                                                  "+
                         " select                                                                                                         "+
@@ -151,7 +150,7 @@ public class Job2_TrafficOverviewOlapAggregate {
                         "   ,page_type                                                                                                   "+
                         "   ,page_service                                                                                                "+
                         "   ,page_url                                                                                                    "
-        ).print();
+        );
 
     }
 }

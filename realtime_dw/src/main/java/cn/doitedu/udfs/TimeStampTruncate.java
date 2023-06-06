@@ -1,7 +1,5 @@
 package cn.doitedu.udfs;
 
-import org.apache.commons.lang3.time.DateFormatUtils;
-import org.apache.commons.lang3.time.FastDateParser;
 import org.apache.flink.table.functions.ScalarFunction;
 
 import java.text.ParseException;
@@ -15,7 +13,7 @@ public class TimeStampTruncate extends ScalarFunction {
 
         try {
             // 将传入的取整间隔（分钟） ,转成毫秒
-            long itv = intervalMinutes * 60 * 1000;
+            long itv = intervalMinutes * 60 * 1000L;
 
             // 将传入的具体时间，转成unix time (长整数时间戳)
             long timeLong = sdf.parse(time).getTime();

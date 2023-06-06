@@ -54,7 +54,7 @@ public class Job4_PVUV_3 {
                         +"     watermark for row_time as row_time - interval '0' second   "
                         +" ) WITH (                                          "
                         +"  'connector' = 'kafka',                           "
-                        +"  'topic' = 'dwd_events',                         "
+                        +"  'topic' = 'dwd_events',                          "
                         +"  'properties.bootstrap.servers' = 'doitedu:9092', "
                         +"  'properties.group.id' = 'testGroup',             "
                         +"  'scan.startup.mode' = 'latest-offset',           "
@@ -115,7 +115,7 @@ public class Job4_PVUV_3 {
                         "     ) o1                                                                                               " +
                         " ) o2                                                                                                   " +
                         " WHERE rn<=10                                                                                           "
-        ).print();
+        );
 
     }
 }
