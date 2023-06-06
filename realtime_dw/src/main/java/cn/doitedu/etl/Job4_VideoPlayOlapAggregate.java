@@ -152,6 +152,8 @@ public class Job4_VideoPlayOlapAggregate {
 
 
         // 第2步，打标记便于将来分组
+        // 每条数据加一个flag字段，普通事件为0，resume事件为1
+        // 然后 sum over 这个flag字段，得到分组标记new_flag字段
         tenv.executeSql(
                 " CREATE TEMPORARY VIEW o2 AS                                                 "
                         +" SELECT                                                                      "
