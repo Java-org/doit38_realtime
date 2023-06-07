@@ -2,17 +2,19 @@ package cn.doitedu.etl;
 
 import cn.doitedu.beans.SearchAggBean;
 import cn.doitedu.beans.SearchResultBean;
+import cn.doitedu.functions.SimilarWordAsyncFunction;
 import cn.doitedu.functions.SimilarWordProcessFunction;
 import org.apache.commons.codec.digest.Md5Crypt;
 import org.apache.flink.streaming.api.CheckpointingMode;
+import org.apache.flink.streaming.api.datastream.AsyncDataStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.types.Row;
-import org.apache.flink.util.Collector;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * @Author: 深似海
@@ -23,7 +25,7 @@ import org.apache.flink.util.Collector;
  *
  *  搜索事件分析主题olap聚合支撑任务
  **/
-public class Job5_SearchOlapAggregate {
+public class Job5_SearchOlapAggregate_Async {
 
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -142,8 +144,9 @@ public class Job5_SearchOlapAggregate {
         //dataStream.print();
 
 
-        SingleOutputStreamOperator<SearchResultBean> resultStream = dataStream.keyBy(bean -> Md5Crypt.md5Crypt(bean.getKeyword().getBytes()).substring(0, 5))
-                .process(new SimilarWordProcessFunction());
+        KeyedStream<SearchAggBean, String> keyedStream = dataStream.keyBy(bean -> Md5Crypt.md5Crypt(bean.getKeyword().getBytes()).substring(0, 5));
+        // 调用flink的异步IO api，来进行近义词服务的异步请求
+        SingleOutputStreamOperator<SearchResultBean> resultStream = AsyncDataStream.unorderedWait(keyedStream, new SimilarWordAsyncFunction(), 1000, TimeUnit.MICROSECONDS);
 
 
         // 5. 写入doris

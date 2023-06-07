@@ -166,13 +166,14 @@
             <version>${flink.version}</version>
         </dependency>
 
-
+        <!-- http同步请求 工具jar -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>4.5.14</version>
         </dependency>
 
+        <!-- http异步请求 工具jar -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpasyncclient</artifactId>
