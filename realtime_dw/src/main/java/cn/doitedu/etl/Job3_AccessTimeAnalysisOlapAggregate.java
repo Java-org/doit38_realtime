@@ -9,10 +9,13 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.CheckpointingMode;
+import org.apache.flink.streaming.api.datastream.AsyncDataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.async.AsyncFunction;
+import org.apache.flink.streaming.api.functions.async.ResultFuture;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -20,6 +23,7 @@ import org.apache.flink.util.Collector;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @Author: 深似海
@@ -65,13 +69,10 @@ public class Job3_AccessTimeAnalysisOlapAggregate {
             return timelongBean;
         });
 
-
         // 核心逻辑
         SingleOutputStreamOperator<TimelongBean> resultStream = beanStream
                 .keyBy(bean -> bean.getSession_id())
                 .process(new TimeLongProcessFunction());
-
-
         /*
          +---------+--------------------------------+--------------------+----------------------+
          | user_id |                       page_url |    page_start_time |        page_end_time |

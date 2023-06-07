@@ -26,7 +26,7 @@ public class Job4_VideoPlayOlapAggregate {
 
         // 1. 创建映射表，映射kafka明细层的行为日志
         tenv.executeSql(
-                "  CREATE TABLE dwd_kafka(                                "
+                "  CREATE TABLE dwd_kafka(                                 "
                         + "     user_id           BIGINT,                     "
                         + "     username          string,                     "
                         + "     session_id        string,                     "
@@ -56,7 +56,7 @@ public class Job4_VideoPlayOlapAggregate {
                         + "     watermark for row_time as row_time - interval '0' second   "
                         + " ) WITH (                                          "
                         + "  'connector' = 'kafka',                           "
-                        + "  'topic' = 'dwd_events',                         "
+                        + "  'topic' = 'dwd_events',                          "
                         + "  'properties.bootstrap.servers' = 'doitedu:9092', "
                         + "  'properties.group.id' = 'testGroup',             "
                         + "  'scan.startup.mode' = 'latest-offset',           "
@@ -68,22 +68,22 @@ public class Job4_VideoPlayOlapAggregate {
 
         // 2. 创建hbase中的视频信息维表映射
         tenv.executeSql(
-                " create table video_hbase(                   " +
-                        "    id BIGINT,                          " +
-                        "    f  ROW<                                 " +
-                        "      video_name STRING,                      " +
-                        "      video_type STRING,                      " +
-                        "      video_album STRING,                     " +
-                        "      video_author STRING,                     " +
-                        "      video_timelong bigint,                  " +
-                        "      create_time timestamp(3),               " +
-                        "      update_time timestamp(3)               " +
-                        " 	   >                                     " +
-                        " ) WITH(                                    " +
-                        "     'connector' = 'hbase-2.2',             " +
-                        "     'table-name' = 'dim_video_info',        " +
-                        "     'zookeeper.quorum' = 'doitedu:2181'    " +
-                        " )                                          "
+                " create table video_hbase(                     " +
+                        "    id BIGINT,                            " +
+                        "    f  ROW<                               " +
+                        "      video_name STRING,                  " +
+                        "      video_type STRING,                  " +
+                        "      video_album STRING,                 " +
+                        "      video_author STRING,                " +
+                        "      video_timelong bigint,              " +
+                        "      create_time timestamp(3),           " +
+                        "      update_time timestamp(3)            " +
+                        " 	   >                                   " +
+                        " ) WITH(                                  " +
+                        "     'connector' = 'hbase-2.2',           " +
+                        "     'table-name' = 'dim_video_info',     " +
+                        "     'zookeeper.quorum' = 'doitedu:2181'  " +
+                        " )                                        "
 
         );
 
@@ -92,10 +92,10 @@ public class Job4_VideoPlayOlapAggregate {
         tenv.executeSql(
                 "CREATE TABLE sink_doris (                  " +
                         "  start_dt         DATE,              " +
-                        "  user_id          BIGINT,             " +
+                        "  user_id          BIGINT,            " +
                         "  release_channel  STRING,            " +
                         "  device_type      STRING,            " +
-                        "  video_id         BIGINT ,              " +
+                        "  video_id         BIGINT ,           " +
                         "  video_play_id    STRING,            " +
                         "  video_name       STRING,            " +
                         "  video_type       STRING,            " +
@@ -234,13 +234,5 @@ public class Job4_VideoPlayOlapAggregate {
                         " left join video_hbase FOR SYSTEM_TIME AS OF agg.proc_time AS v   "+
                         " ON agg.video_id = v.id                                           "
         );
-
-
-
-
-
-
     }
-
-
 }
