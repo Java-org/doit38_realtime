@@ -230,10 +230,10 @@ public class Job5_OrderDaySettlement {
         // 构造一个mysql的jdbc sink function
         SinkFunction<OrderDiffValues> sink = JdbcSink.sink(
                 "insert into order_day_settlement (update_time, total_origin_amount, total_count) values (?, ?, ?)",
-                (statement, values) -> {
-                    statement.setTimestamp(1,values.getOutTime());
-                    statement.setBigDecimal(2, values.getTotalOriginAmount());
-                    statement.setInt(3, values.getTotalCount());
+                (statement, orderDiffValues) -> {
+                    statement.setTimestamp(1,orderDiffValues.getOutTime());
+                    statement.setBigDecimal(2, orderDiffValues.getTotalOriginAmount());
+                    statement.setInt(3, orderDiffValues.getTotalCount());
                 },
                 JdbcExecutionOptions.builder()
                         .withBatchSize(1000)
@@ -255,6 +255,12 @@ public class Job5_OrderDaySettlement {
 
     }
 
+
+    /**
+     * 新旧汇总数据  合并逻辑工具方法
+     * @param old
+     * @param cur
+     */
     public static void merge(OrderDiffValues old, OrderDiffValues cur) {
 
         old.setTotalCount(old.getTotalCount() + cur.getTotalCount());
