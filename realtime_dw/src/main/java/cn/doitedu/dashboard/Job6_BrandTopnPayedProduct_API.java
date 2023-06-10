@@ -85,7 +85,7 @@ public class Job6_BrandTopnPayedProduct_API {
                 .window()
       */
 
-        orderOuterBeanStream
+       /*orderOuterBeanStream
                 .coGroup(itemOuterBeanStream)
                 .where()
                 .equalTo()
@@ -98,51 +98,8 @@ public class Job6_BrandTopnPayedProduct_API {
                         // 但订单 在下一个窗口时 变成已支付，则拿不到商品数据了
                     }
                 });
+        */
 
-
-        KeyedStream<OrderCdcOuterBean, Tuple> keyedOrder = orderOuterBeanStream.keyBy();
-        KeyedStream<ItemCdcOuterBean, Tuple> keyedItem = itemOuterBeanStream.keyBy();
-
-
-        keyedOrder.connect(keyedItem)
-                .process(new KeyedCoProcessFunction<Object, OrderCdcOuterBean, ItemCdcOuterBean, Object>() {
-
-                    @Override
-                    public void open(Configuration parameters) throws Exception {
-
-
-                    }
-
-                    @Override
-                    public void processElement1(OrderCdcOuterBean orderCdcOuterBean, KeyedCoProcessFunction<Object, OrderCdcOuterBean, ItemCdcOuterBean, Object>.Context context, Collector<Object> collector) throws Exception {
-
-                        // 收到订单主表数据，判断时间（为此刻的小时窗口），存入状态
-
-
-
-                    }
-
-                    @Override
-                    public void processElement2(ItemCdcOuterBean itemCdcOuterBean, KeyedCoProcessFunction<Object, OrderCdcOuterBean, ItemCdcOuterBean, Object>.Context context, Collector<Object> collector) throws Exception {
-
-                        // 收到订单商品数据，存入状态
-
-
-                    }
-
-
-                    @Override
-                    public void onTimer(long timestamp, KeyedCoProcessFunction<Object, OrderCdcOuterBean, ItemCdcOuterBean, Object>.OnTimerContext ctx, Collector<Object> out) throws Exception {
-
-                        // 小时触发点到达，则在两个表的状态中，进行计算
-                        //  寻找支付时间在本小时段的订单，找它对应的商品表数据
-
-                        //  按品牌，算金额总和，排序，然后输出
-
-                        //
-
-                    }
-                });
 
 
 

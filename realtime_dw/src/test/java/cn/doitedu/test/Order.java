@@ -27,6 +27,7 @@ import org.apache.kafka.connect.json.JsonConverterConfig;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -55,58 +56,96 @@ public class Order {
 
         DataStreamSource<String> ds = env.fromSource(mySqlSource, WatermarkStrategy.noWatermarks(), "x");
 
-        SingleOutputStreamOperator<BigDecimal> process = ds.map((MapFunction<String, JSONObject>) JSON::parseObject)
+        SingleOutputStreamOperator<OrderBean> process = ds.map((MapFunction<String, JSONObject>) JSON::parseObject)
                 .keyBy((KeySelector<JSONObject, Long>) jsonObject -> jsonObject.getJSONObject("after").getLong("id"))
-                .process(new KeyedProcessFunction<Long, JSONObject, BigDecimal>() {
+                .process(new KeyedProcessFunction<Long, JSONObject, OrderBean>() {
                     ValueState<OrderBean> orderState;
-                    ValueState<BigDecimal> sumState;
-
                     @Override
                     public void open(Configuration parameters) throws Exception {
                         orderState = getRuntimeContext().getState(new ValueStateDescriptor<OrderBean>("od", OrderBean.class));
-                        sumState = getRuntimeContext().getState(new ValueStateDescriptor<BigDecimal>("sum", BigDecimal.class));
-
                     }
 
                     @Override
-                    public void processElement(JSONObject jsonObject, KeyedProcessFunction<Long, JSONObject, BigDecimal>.Context context, Collector<BigDecimal> collector) throws Exception {
+                    public void processElement(JSONObject jsonObject, KeyedProcessFunction<Long, JSONObject, OrderBean>.Context context, Collector<OrderBean> collector) throws Exception {
                         JSONObject after = jsonObject.getJSONObject("after");
+
+                        long modifyTime = after.getLong("modify_time");
+                        if(modifyTime < new Date().getTime()) return;
+
                         // '订单状态：0->待付款；1->待发货；2->已发货；3->已完成；4->已关闭；5->无效订单'
-                        Integer status = after.getInteger("status");
-                        BigDecimal totalAmount = after.getBigDecimal("total_amount");
+                        Integer newStatus = after.getInteger("status");
+                        BigDecimal curTotalAmount = after.getBigDecimal("total_amount");
+                        BigDecimal curPayAmount = after.getBigDecimal("pay_amount");
 
                         OrderBean oldOrderBean = orderState.value();
-
-                        if (oldOrderBean == null && status > 0) {
-                            collector.collect(totalAmount);
+                        if(oldOrderBean == null){
+                            oldOrderBean = new OrderBean(context.getCurrentKey(), BigDecimal.ZERO,BigDecimal.ZERO,null);
+                            orderState.update(oldOrderBean);
                         }
 
-                        if (oldOrderBean != null && !oldOrderBean.getTotalAmount().equals(totalAmount)) {
-                            collector.collect(totalAmount.subtract(oldOrderBean.getTotalAmount()));
+                        BigDecimal oldTotalAmount = oldOrderBean.getTotalAmount();
+                        BigDecimal oldTotalPayAmount = oldOrderBean.getTotalPayAmount();
+
+
+                        BigDecimal amountDiff = BigDecimal.ZERO;
+                        BigDecimal payAmountDiff = BigDecimal.ZERO;
+                        // 今日待付总额（原价、应付）
+                        if(newStatus == 0) {
+                            // 原价总额 差
+                            amountDiff = curTotalAmount.subtract(oldTotalAmount);
+
+                            // 应付总额 差
+                            payAmountDiff = curPayAmount.subtract(oldTotalPayAmount);
+
+                        }else if(newStatus == 4 || newStatus == 5){
+                            // 原价总额 差
+                            amountDiff = BigDecimal.ZERO.subtract(oldTotalAmount);
+
+                            // 应付总额 差
+                            payAmountDiff = BigDecimal.ZERO.subtract(oldTotalPayAmount);
                         }
+
+                        collector.collect(new OrderBean(context.getCurrentKey() ,amountDiff,payAmountDiff,null));
+
+                        orderState.update(new OrderBean(context.getCurrentKey(), curTotalAmount,curPayAmount,null));
+
+                        // 今日订单总额
+
                     }
                 });
 
-        process.keyBy(d->1).process(new ProcessFunction<BigDecimal, BigDecimal>() {
-            ValueState<BigDecimal> s;
+        process.keyBy(s->1).process(new KeyedProcessFunction<Integer, OrderBean, String>() {
+            ValueState<BigDecimal> totalState;
+            ValueState<BigDecimal> payState;
+
             @Override
             public void open(Configuration parameters) throws Exception {
-                s = getRuntimeContext().getState(new ValueStateDescriptor<BigDecimal>("s", BigDecimal.class));
+                totalState = getRuntimeContext().getState(new ValueStateDescriptor<BigDecimal>("total", BigDecimal.class));
+                payState = getRuntimeContext().getState(new ValueStateDescriptor<BigDecimal>("total", BigDecimal.class));
+
+
             }
 
             @Override
-            public void processElement(BigDecimal bigDecimal, ProcessFunction<BigDecimal, BigDecimal>.Context context, Collector<BigDecimal> collector) throws Exception {
-                BigDecimal old = s.value();
-                if(old == null) {
-                    old = BigDecimal.valueOf(0);
-                    s.update(old);
+            public void processElement(OrderBean orderBean, KeyedProcessFunction<Integer, OrderBean, String>.Context context, Collector<String> collector) throws Exception {
+                if(totalState.value() == null) {
+                    totalState.update(BigDecimal.ZERO);
                 }
 
-                s.update(old.add(bigDecimal));
-                collector.collect(s.value());
-            }
-        }).print();
+                if(payState.value() == null) {
+                    payState.update(BigDecimal.ZERO);
+                }
 
+                BigDecimal totalAmount = orderBean.getTotalAmount();
+                BigDecimal totalPayAmount = orderBean.getTotalPayAmount();
+
+                totalState.update(totalState.value().add(totalAmount));
+                payState.update(payState.value().add(totalPayAmount));
+
+                collector.collect(totalState.value() + "," +payState.value());
+
+            }
+        }).setParallelism(1).print();
 
         env.execute();
 
@@ -129,6 +168,7 @@ public class Order {
     public static class OrderBean{
         private Long id;
         private BigDecimal totalAmount;
+        private BigDecimal totalPayAmount;
         private Integer status;
     }
 

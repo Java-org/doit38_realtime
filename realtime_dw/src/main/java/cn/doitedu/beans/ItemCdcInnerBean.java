@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ItemCdcInnerBean {
+    private long id;
     private long order_id;
     private long product_id;
     private String product_brand;
