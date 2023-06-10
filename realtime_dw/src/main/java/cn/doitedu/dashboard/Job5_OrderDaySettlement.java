@@ -6,19 +6,26 @@ import cn.doitedu.beans.OrderDiffValues;
 import com.alibaba.fastjson.JSON;
 import com.ververica.cdc.connectors.mysql.source.MySqlSource;
 import com.ververica.cdc.debezium.JsonDebeziumDeserializationSchema;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.connector.jdbc.JdbcConnectionOptions;
+import org.apache.flink.connector.jdbc.JdbcExecutionOptions;
+import org.apache.flink.connector.jdbc.JdbcSink;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 
@@ -31,6 +38,7 @@ import java.util.HashMap;
  * <p>
  * 订单日清日结看板指标
  **/
+@Slf4j
 public class Job5_OrderDaySettlement {
     public static void main(String[] args) throws Exception {
 
@@ -91,7 +99,7 @@ public class Job5_OrderDaySettlement {
                         // 订单总数调整
                         long truncate = 24 * 60 * 60 * 1000L;
                         // 如果 before 无效，而现在有效，则订单数要 +1
-                        if (after.getCreate_time() >= (new Date().getTime()/truncate)*truncate) {
+                        if (after.getCreate_time() >= (new Date().getTime() / truncate) * truncate) {
 
                             if ((before == null || before.getStatus() >= 4) && after.getStatus() <= 3) {
                                 // 调整数量,+:
@@ -99,7 +107,6 @@ public class Job5_OrderDaySettlement {
 
                                 // 调整 +:  原价 总金额
                                 orderDiffValues.setTotalOriginAmount(after.getTotal_amount());
-
                             }
                             // 如果 before有效，而现在无效，则订单数要 -1
                             else if ((before != null && before.getStatus() <= 3) && after.getStatus() >= 4) {
@@ -109,18 +116,18 @@ public class Job5_OrderDaySettlement {
 
                                 // 调整原价 总金额  -:
                                 orderDiffValues.setTotalOriginAmount(before.getTotal_amount().negate());
-
                             }
 
                             // before无效，现在无效  ^   before有效，现在有效
                             else {
+
+                                // 调整数量 0:不变
                                 orderDiffValues.setTotalCount(0);
 
-                                // 有效 -> 有效
-                                if( before.getStatus()<=3 && after.getStatus()<=3){
-
+                                // 调整金额 ，有效 -> 有效 ，调整额度： 新值-旧值
+                                if (before != null && before.getStatus() <= 3 && after.getStatus() <= 3) {
                                     // 调整为：  现在的金额 - 此前的金额
-                                    orderDiffValues.setTotalOriginAmount( after.getTotal_amount().subtract(before.getTotal_amount())    );
+                                    orderDiffValues.setTotalOriginAmount(after.getTotal_amount().subtract(before.getTotal_amount()));
 
                                 }
 
@@ -128,11 +135,11 @@ public class Job5_OrderDaySettlement {
                         }
 
 
-
                         // 订单实付总额调整
 
 
                         // 待支付订单数调整
+
 
                         // 待支付订单额调整
 
@@ -161,33 +168,88 @@ public class Job5_OrderDaySettlement {
                 });
 
 
-        SingleOutputStreamOperator<OrderDiffValues> cumulate = valueChangeStream.keyBy(diff -> 1)
-                .process(new KeyedProcessFunction<Integer, OrderDiffValues, OrderDiffValues>() {
-                    ValueState<OrderDiffValues> cumulateState;
+        SingleOutputStreamOperator<OrderDiffValues> cumulate =
+                valueChangeStream
+                        .keyBy(diff -> 1)
+                        .process(new KeyedProcessFunction<Integer, OrderDiffValues, OrderDiffValues>() {
+                            ValueState<OrderDiffValues> cumulateState;
+                            ValueState<Long> timerState;
 
-                    @Override
-                    public void open(Configuration parameters) throws Exception {
-                        cumulateState = getRuntimeContext().getState(new ValueStateDescriptor<OrderDiffValues>("cumulate", OrderDiffValues.class));
-                    }
+                            @Override
+                            public void open(Configuration parameters) throws Exception {
+                                cumulateState = getRuntimeContext().getState(new ValueStateDescriptor<OrderDiffValues>("cumulate", OrderDiffValues.class));
+                                timerState = getRuntimeContext().getState(new ValueStateDescriptor<Long>("timer", Long.class));
+                            }
 
-                    @Override
-                    public void processElement(OrderDiffValues orderDiffValues, KeyedProcessFunction<Integer, OrderDiffValues, OrderDiffValues>.Context context, Collector<OrderDiffValues> collector) throws Exception {
+                            @Override
+                            public void processElement(OrderDiffValues orderDiffValues, KeyedProcessFunction<Integer, OrderDiffValues, OrderDiffValues>.Context context, Collector<OrderDiffValues> collector) throws Exception {
 
-                        OrderDiffValues oldCumulateValues = cumulateState.value();
+                                // 首次收到数据，注册一个用于定时输出结果的定时器
+                                if (timerState.value() == null) {
+                                    long timerTime = ((context.timerService().currentProcessingTime() + 10000L)/60000L)*60000L;
+                                    timerState.update(timerTime);
+                                    context.timerService().registerProcessingTimeTimer(timerTime);
+                                    log.warn("注册了定时器 : {}", Timestamp.from(Instant.ofEpochMilli(timerTime)));
+                                }
 
-                        if (oldCumulateValues == null) {
-                            cumulateState.update(orderDiffValues);
-                        }else {
-                            // 否则，将此次收到的各个调整值，跟此前累积的值进行合并
-                            merge(oldCumulateValues, orderDiffValues);
-                        }
+                                // 取出此前汇总的老结果
+                                OrderDiffValues oldCumulateValues = cumulateState.value();
+
+                                // 如果状态中的老结果尚为空，则本次收到的汇总数据存入状态
+                                if (oldCumulateValues == null) {
+                                    cumulateState.update(orderDiffValues);
+                                } else {
+                                    // 否则，将此次收到的各个调整值，跟此前累积的值进行合并
+                                    merge(oldCumulateValues, orderDiffValues);
+                                }
 
 
-                        collector.collect(cumulateState.value());
-                    }
-                });
+                            }
 
-        cumulate.print();
+                            @Override
+                            public void onTimer(long timestamp, KeyedProcessFunction<Integer, OrderDiffValues, OrderDiffValues>.OnTimerContext ctx, Collector<OrderDiffValues> collector) throws Exception {
+
+                                log.warn("定时器被调用 : {}", Timestamp.from(Instant.ofEpochMilli(timestamp)));
+                                log.warn("并注册新定时 : {}", Timestamp.from(Instant.ofEpochMilli(timerState.value() + 10 * 1000L)));
+
+                                // 输出此刻的汇总结果
+                                OrderDiffValues result = cumulateState.value();
+                                result.setOutTime(Timestamp.from(Instant.ofEpochMilli(timestamp)));
+                                collector.collect(result);
+
+                                // 注册下一次输出数据的定时器
+                                long newTime = timerState.value() + 10 * 1000L;
+                                ctx.timerService().registerProcessingTimeTimer(newTime);
+                                timerState.update(newTime);
+
+                            }
+                        });
+
+        //cumulate.print();
+
+        // 构造一个mysql的jdbc sink function
+        SinkFunction<OrderDiffValues> sink = JdbcSink.sink(
+                "insert into order_day_settlement (update_time, total_origin_amount, total_count) values (?, ?, ?)",
+                (statement, values) -> {
+                    statement.setTimestamp(1,values.getOutTime());
+                    statement.setBigDecimal(2, values.getTotalOriginAmount());
+                    statement.setInt(3, values.getTotalCount());
+                },
+                JdbcExecutionOptions.builder()
+                        .withBatchSize(1000)
+                        .withBatchIntervalMs(200)
+                        .withMaxRetries(5)
+                        .build(),
+                new JdbcConnectionOptions.JdbcConnectionOptionsBuilder()
+                        .withUrl("jdbc:mysql://doitedu:3306/realtimedw")
+                        .withDriverName("com.mysql.jdbc.Driver")
+                        .withUsername("root")
+                        .withPassword("root")
+                        .build()
+        );
+
+        // 输出到  sink
+        cumulate.addSink(sink);
 
         env.execute();
 

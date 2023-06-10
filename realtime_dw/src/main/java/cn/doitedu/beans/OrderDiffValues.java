@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 
 /*
     订单总数、总额 、应付总额 （当日新订单）
@@ -20,6 +21,8 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderDiffValues {
+
+    private Timestamp outTime = null;
 
     private int totalCount = 0;
     private BigDecimal totalOriginAmount = BigDecimal.ZERO;
