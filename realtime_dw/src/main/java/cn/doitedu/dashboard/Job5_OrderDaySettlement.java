@@ -7,6 +7,9 @@ import com.alibaba.fastjson.JSON;
 import com.ververica.cdc.connectors.mysql.source.MySqlSource;
 import com.ververica.cdc.debezium.JsonDebeziumDeserializationSchema;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -74,7 +77,7 @@ public class Job5_OrderDaySettlement {
          *     2.1  keyBy(order_id) 后，对同一个订单的 changelog 数据按照需求逻辑输出：调整值
          *     2.2  全局单并行：把上游输入过来的持续不断的 “调整值“ 进行累加
          */
-        beanStream.keyBy(outer -> outer.getAfter().getId())
+        SingleOutputStreamOperator<OrderDiffValues> valueChangeStream = beanStream.keyBy(outer -> outer.getAfter().getId())
                 .process(new KeyedProcessFunction<Long, OrderCdcOuterBean, OrderDiffValues>() {
                     @Override
                     public void processElement(OrderCdcOuterBean orderCdcOuterBean, KeyedProcessFunction<Long, OrderCdcOuterBean, OrderDiffValues>.Context context, Collector<OrderDiffValues> collector) throws Exception {
@@ -87,21 +90,43 @@ public class Job5_OrderDaySettlement {
 
                         // 订单总数调整
                         long truncate = 24 * 60 * 60 * 1000L;
-                        // 如果before无效，而现在有效，则订单数要 +1
-                        if ((before == null || before.getStatus() >= 4) && after.getStatus() <= 3) {
-                            orderDiffValues.setTotalCount(1);
-                        }
-                        // 如果 before有效，而现在无效，则订单数要 -1
-                        else if ((before != null || before.getStatus() <= 3) && after.getStatus() >= 4) {
-                            orderDiffValues.setTotalCount(-1);
+                        // 如果 before 无效，而现在有效，则订单数要 +1
+                        if (after.getCreate_time() >= (new Date().getTime()/truncate)*truncate) {
+
+                            if ((before == null || before.getStatus() >= 4) && after.getStatus() <= 3) {
+                                // 调整数量,+:
+                                orderDiffValues.setTotalCount(1);
+
+                                // 调整 +:  原价 总金额
+                                orderDiffValues.setTotalOriginAmount(after.getTotal_amount());
+
+                            }
+                            // 如果 before有效，而现在无效，则订单数要 -1
+                            else if ((before != null && before.getStatus() <= 3) && after.getStatus() >= 4) {
+
+                                // 调整数量   -:
+                                orderDiffValues.setTotalCount(-1);
+
+                                // 调整原价 总金额  -:
+                                orderDiffValues.setTotalOriginAmount(before.getTotal_amount().negate());
+
+                            }
+
+                            // before无效，现在无效  ^   before有效，现在有效
+                            else {
+                                orderDiffValues.setTotalCount(0);
+
+                                // 有效 -> 有效
+                                if( before.getStatus()<=3 && after.getStatus()<=3){
+
+                                    // 调整为：  现在的金额 - 此前的金额
+                                    orderDiffValues.setTotalOriginAmount( after.getTotal_amount().subtract(before.getTotal_amount())    );
+
+                                }
+
+                            }
                         }
 
-                        // before无效，现在无效  ^   before 有效 ，现在有效
-                        else {
-                            orderDiffValues.setTotalCount(0);
-                        }
-
-                        // 订单原价总额调整
 
 
                         // 订单实付总额调整
@@ -130,11 +155,63 @@ public class Job5_OrderDaySettlement {
                         // 完成订单额调整
 
 
+                        collector.collect(orderDiffValues);
+
                     }
                 });
 
 
+        SingleOutputStreamOperator<OrderDiffValues> cumulate = valueChangeStream.keyBy(diff -> 1)
+                .process(new KeyedProcessFunction<Integer, OrderDiffValues, OrderDiffValues>() {
+                    ValueState<OrderDiffValues> cumulateState;
+
+                    @Override
+                    public void open(Configuration parameters) throws Exception {
+                        cumulateState = getRuntimeContext().getState(new ValueStateDescriptor<OrderDiffValues>("cumulate", OrderDiffValues.class));
+                    }
+
+                    @Override
+                    public void processElement(OrderDiffValues orderDiffValues, KeyedProcessFunction<Integer, OrderDiffValues, OrderDiffValues>.Context context, Collector<OrderDiffValues> collector) throws Exception {
+
+                        OrderDiffValues oldCumulateValues = cumulateState.value();
+
+                        if (oldCumulateValues == null) {
+                            cumulateState.update(orderDiffValues);
+                        }else {
+                            // 否则，将此次收到的各个调整值，跟此前累积的值进行合并
+                            merge(oldCumulateValues, orderDiffValues);
+                        }
+
+
+                        collector.collect(cumulateState.value());
+                    }
+                });
+
+        cumulate.print();
+
         env.execute();
 
     }
+
+    public static void merge(OrderDiffValues old, OrderDiffValues cur) {
+
+        old.setTotalCount(old.getTotalCount() + cur.getTotalCount());
+        old.setTotalOriginAmount(old.getTotalOriginAmount().add(cur.getTotalOriginAmount()));
+        old.setTotalRealAmount(old.getTotalRealAmount().add(cur.getTotalRealAmount()));
+
+        old.setToPayTotalCount(old.getToPayTotalCount() + cur.getToPayTotalCount());
+        old.setToPayTotalAmount(old.getToPayTotalAmount().add(cur.getToPayTotalAmount()));
+
+        old.setPayedTotalCount(old.getPayedTotalCount() + cur.getPayedTotalCount());
+        old.setPayedTotalAmount(old.getPayedTotalAmount().add(cur.getPayedTotalAmount()));
+
+        old.setDeliveredTotalCount(old.getDeliveredTotalCount() + cur.getDeliveredTotalCount());
+        old.setDeliveredTotalAmount(old.getDeliveredTotalAmount().add(cur.getDeliveredTotalAmount()));
+
+        old.setCompletedTotalCount(old.getCompletedTotalCount() + cur.getCompletedTotalCount());
+        old.setCompletedTotalAmount(old.getCompletedTotalAmount().add(cur.getCompletedTotalAmount()));
+
+    }
+
+
 }
