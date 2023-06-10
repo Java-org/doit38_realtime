@@ -1,4 +1,4 @@
-package cn.doitedu.dashboard;
+package cn.doitedu.test;
 
 import cn.doitedu.beans.ItemCdcOuterBean;
 import cn.doitedu.beans.OrderCdcOuterBean;
@@ -10,7 +10,6 @@ import org.apache.flink.api.common.functions.CoGroupFunction;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.CheckpointingMode;
-import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -18,11 +17,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
-import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.Schema;
-import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 
@@ -37,7 +32,7 @@ import java.util.HashMap;
  *
  *   实时看板指标： 每小时 ，每个品牌中， 已支付金额最大的前 N个商品
  **/
-public class Job6_BrandTopnPayedProduct_API {
+public class Job6_BrandTopnPayedProduct_API2 {
     public static void main(String[] args) {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
