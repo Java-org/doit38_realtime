@@ -153,7 +153,5 @@ public class Job7_AdClickPredictFeatureEtl {
         );
 
         tenv.executeSql("insert into sink_kafka select * from res");
-
-
     }
 }
