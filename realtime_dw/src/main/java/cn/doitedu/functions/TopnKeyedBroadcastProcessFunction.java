@@ -3,6 +3,7 @@ package cn.doitedu.functions;
 import cn.doitedu.beans.BrandTopnBean;
 import cn.doitedu.beans.ItemCdcInnerBean;
 import cn.doitedu.beans.OrderCdcInnerBean;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.state.*;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
@@ -12,6 +13,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean> {
 
     MapState<Long, ItemCdcInnerBean> itemsState;
@@ -76,6 +78,8 @@ public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunc
     @Override
     public void onTimer(long timestamp, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.OnTimerContext ctx, Collector<BrandTopnBean> out) throws Exception {
 
+        log.warn("---- on timer -------------");
+
         String productBrand = ctx.getCurrentKey();
 
         long static_start_time = timestamp - 60000;
@@ -89,7 +93,7 @@ public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunc
         // 3,p1,o2,耐克,1,500
         // 4,p6,o2,耐克,2,200
 
-        HashMap<Long, BigDecimal> aggMap = new HashMap<>();
+        HashMap<String, BigDecimal> aggMap = new HashMap<>();
 
         // 遍历每条明细，进行累加聚合
         Iterable<Map.Entry<Long, ItemCdcInnerBean>> entries = itemsState.entries();
@@ -97,6 +101,7 @@ public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunc
             ItemCdcInnerBean itemBean = entry.getValue();
 
             String brand = itemBean.getProduct_brand();
+            String productName = itemBean.getProduct_name();
             long productId = itemBean.getProduct_id();
             long orderId = itemBean.getOrder_id();
             int quantity = itemBean.getProduct_quantity();
@@ -104,19 +109,23 @@ public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunc
 
             OrderCdcInnerBean orderBean = broadcastState.get(orderId);
             int status = orderBean.getStatus();
-            long paymentTime = orderBean.getPayment_time();
+            long paymentTime = orderBean.getPayment_time() + 8*60*60*100L;
 
             // 如果该商品购买明细所属的订单是已经支付了，且支付时间在本次统计的时间窗口内，则要对该条明细中的金额进行累加
             if ((status == 1 || status == 2 || status == 3) && paymentTime >= static_start_time && paymentTime < static_end_time) {
                 BigDecimal oldValue = aggMap.getOrDefault(productId, BigDecimal.ZERO);
                 BigDecimal newValue = oldValue.add(price.multiply(BigDecimal.valueOf(quantity)));
-                aggMap.put(productId, newValue);
+                aggMap.put(productId+"\001"+productName, newValue);
             }
         }
 
 
-        for (Map.Entry<Long, BigDecimal> aggEntry : aggMap.entrySet()) {
-            out.collect(new BrandTopnBean(productBrand, aggEntry.getKey(), aggEntry.getValue(), static_start_time, static_end_time));
+        for (Map.Entry<String, BigDecimal> entry : aggMap.entrySet()) {
+            String[] pidAndName = entry.getKey().split("\001");
+            long pid = Long.parseLong(pidAndName[0]);
+            String pName = pidAndName[1];
+
+            System.out.println(new BrandTopnBean(ctx.getCurrentKey(), pid, pName, entry.getValue(), static_start_time, static_end_time));
         }
 
 

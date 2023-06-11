@@ -1,6 +1,7 @@
 package cn.doitedu.etl;
 
 import cn.doitedu.udfs.TimeStampTruncate2;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -12,7 +13,12 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 public class Job2_TrafficOverviewOlapAggregate {
 
     public static void main(String[] args) {
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+        //StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        Configuration configuration = new Configuration();
+        configuration.setInteger("rest.port",8081);
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(configuration);
+
         env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt");
         env.setParallelism(1);
@@ -88,7 +94,7 @@ public class Job2_TrafficOverviewOlapAggregate {
                         "   'table.identifier' = 'dws.tfc_overview_u_m',    "+
                         "   'username' = 'root',                            "+
                         "   'password' = 'root',                            "+
-                        "   'sink.label-prefix' = 'doris_label3'            "+
+                        "   'sink.label-prefix' = 'doris_label23'            "+
                         ")                                                  "
         );
 

@@ -14,6 +14,7 @@ public class ItemCdcInnerBean {
     private long id;
     private long order_id;
     private long product_id;
+    private String product_name;
     private String product_brand;
     private int product_quantity;
     private BigDecimal product_price;

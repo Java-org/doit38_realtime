@@ -29,7 +29,7 @@ public class Job5_SearchOlapAggregate {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt");
-        env.setParallelism(1);
+        env.setParallelism(4);
 
         StreamTableEnvironment tenv = StreamTableEnvironment.create(env);
 
@@ -166,7 +166,7 @@ public class Job5_SearchOlapAggregate {
                         "   'table.identifier' = 'dws.search_ana_agg',   "+
                         "   'username' = 'root',                         "+
                         "   'password' = 'root',                         "+
-                        "   'sink.label-prefix' = 'doris_label72'        "+
+                        "   'sink.label-prefix' = 'doris_label35'        "+
                         ")                                               "
         );
 

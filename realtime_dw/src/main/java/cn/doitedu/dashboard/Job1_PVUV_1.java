@@ -93,7 +93,7 @@ public class Job1_PVUV_1 {
         // ses:count(distinct session_id)
 
         tenv.executeSql(
-                " INSERT INTO dashboard_traffic_1                                  "+
+                " INSERT INTO dashboard_traffic_1                                       "+
                         " SELECT                                                           "+
                         "   window_start,                                                  "+
                         "   window_end,                                                    "+
@@ -101,7 +101,7 @@ public class Job1_PVUV_1 {
                         "   count(distinct user_id) as uv_amt,                             "+
                         "   count(distinct session_id) as ses_amt                          "+
                         " from TABLE(                                                      "+
-                        " TUMBLE(TABLE dwd_kafka,DESCRIPTOR(row_time),INTERVAL '5' MINUTE)  "+
+                        " TUMBLE(TABLE dwd_kafka,DESCRIPTOR(row_time),INTERVAL '5' MINUTE) "+
                         " )                                                                "+
                         " GROUP BY                                                         "+
                         "   window_start,                                                  "+

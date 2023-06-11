@@ -12,12 +12,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.state.*;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.connector.jdbc.JdbcConnectionOptions;
+import org.apache.flink.connector.jdbc.JdbcExecutionOptions;
+import org.apache.flink.connector.jdbc.JdbcSink;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
+import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.connect.json.JsonConverterConfig;
@@ -44,12 +48,14 @@ public class Job6_BrandTopnPayedProduct_API2 {
         env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt/");
         env.setParallelism(1);
-        StreamTableEnvironment tenv = StreamTableEnvironment.create(env);
 
         HashMap<String, Object> schemaConfigs = new HashMap<>();
         schemaConfigs.put(JsonConverterConfig.DECIMAL_FORMAT_CONFIG, "numeric");
 
 
+        /* *
+         * 1. 订单主表 数据读取及处理
+         */
         MySqlSource<String> mySqlSource1 = MySqlSource.<String>builder()
                 .hostname("doitedu")
                 .port(3306)
@@ -57,18 +63,25 @@ public class Job6_BrandTopnPayedProduct_API2 {
                 .tableList("realtimedw.oms_order") // set captured table
                 .username("root")
                 .password("root")
+                .serverTimeZone("Asia/Shanghai")
                 .deserializer(new JsonDebeziumDeserializationSchema(false, schemaConfigs)) // converts SourceRecord to JSON String
                 .build();
 
-        DataStreamSource<String> orderCdcStream = env.fromSource(mySqlSource1, WatermarkStrategy.noWatermarks(), "cdc");
-        SingleOutputStreamOperator<OrderCdcOuterBean> orderOuterBeanStream = orderCdcStream.map(json -> JSON.parseObject(json, OrderCdcOuterBean.class));
-        // 广播出来
+        // 读取订单主表数据
+        DataStreamSource<String> orderCdcStream = env.fromSource(mySqlSource1, WatermarkStrategy.noWatermarks(), "order-cdc");
+
+        // 将订单主表数据解析，并只保留after数据，并封装成JavaBean
+        SingleOutputStreamOperator<OrderCdcInnerBean> orderOuterBeanStream =
+                orderCdcStream.map(json -> JSON.parseObject(json, OrderCdcOuterBean.class).getAfter());
+
+        // 广播订单主表数据
         MapStateDescriptor<Long, OrderCdcInnerBean> desc = new MapStateDescriptor<>("order-bc", Long.class, OrderCdcInnerBean.class);
-        BroadcastStream<OrderCdcOuterBean> broadcast = orderOuterBeanStream.broadcast(desc);
-
-        //orderOuterBeanStream.print();
+        BroadcastStream<OrderCdcInnerBean> broadcast = orderOuterBeanStream.broadcast(desc);
 
 
+        /* *
+         * 2. 订单商品明细表 数据读取及处理
+         */
         MySqlSource<String> mySqlSource2 = MySqlSource.<String>builder()
                 .hostname("doitedu")
                 .port(3306)
@@ -78,132 +91,165 @@ public class Job6_BrandTopnPayedProduct_API2 {
                 .password("root")
                 .deserializer(new JsonDebeziumDeserializationSchema(false, schemaConfigs)) // converts SourceRecord to JSON String
                 .build();
-        DataStreamSource<String> itemCdcStream = env.fromSource(mySqlSource2, WatermarkStrategy.noWatermarks(), "cdc");
+        DataStreamSource<String> itemCdcStream = env.fromSource(mySqlSource2, WatermarkStrategy.noWatermarks(), "item-cdc");
         SingleOutputStreamOperator<ItemCdcOuterBean> itemOuterBeanStream = itemCdcStream.map(json -> JSON.parseObject(json, ItemCdcOuterBean.class));
 
-        //itemOuterBeanStream.print();
+        SingleOutputStreamOperator<BrandTopnBean> res =
+                itemOuterBeanStream
+                        .map(ItemCdcOuterBean::getAfter)  // 只取cdc数据中的after
+                        .keyBy(ItemCdcInnerBean::getProduct_brand)  // 按品牌分区
+                        .connect(broadcast)  // 连接广播数据（订单主表数据）
+                        .process(new KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>() {
+                            MapState<Long, ItemCdcInnerBean> itemsState;
+                            ValueState<Long> timerState;
 
 
-        SingleOutputStreamOperator<BrandTopnBean> res = itemOuterBeanStream
-                .map(outer -> outer.getAfter())
-                .keyBy(bean -> bean.getProduct_brand())
-                .connect(broadcast)
-                .process(new KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcOuterBean, BrandTopnBean>() {
-                    MapState<Long, ItemCdcInnerBean> itemsState;
-                    ValueState<Long> timerState;
+                            @Override
+                            public void open(Configuration parameters) throws Exception {
+                                // 用于存储item记录明细的状态：  id -> [itemBean] ，如果有 op=u 的操作，则根据主键id直接覆盖以保留最新数据
+                                itemsState = getRuntimeContext().getMapState(new MapStateDescriptor<Long, ItemCdcInnerBean>("p-amt", Long.class, ItemCdcInnerBean.class));
 
+                                timerState = getRuntimeContext().getState(new ValueStateDescriptor<Long>("timer", Long.class));
 
-                    @Override
-                    public void open(Configuration parameters) throws Exception {
-                        // id -> itemid,价格*数量
-                        itemsState = getRuntimeContext().getMapState(new MapStateDescriptor<Long, ItemCdcInnerBean>("p-amt", Long.class, ItemCdcInnerBean.class));
-                        timerState = getRuntimeContext().getState(new ValueStateDescriptor<Long>("timer", Long.class));
-
-                    }
-
-                    @Override
-                    public void processElement(ItemCdcInnerBean itemBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcOuterBean, BrandTopnBean>.ReadOnlyContext readOnlyContext, Collector<BrandTopnBean> collector) throws Exception {
-
-                        // 初始定时器注册
-                        Long timerTime = timerState.value();
-                        if (timerTime == null) {
-                            timerTime = (readOnlyContext.currentProcessingTime()/60000)*60000 + 60*1000;
-                            readOnlyContext.timerService().registerProcessingTimeTimer(timerTime);
-                            timerState.update(timerTime);
-                        }
-
-                        // 新增或覆盖
-                        long id = itemBean.getId();
-                        itemsState.put(id, itemBean);
-                    }
-
-                    @Override
-                    public void processBroadcastElement(OrderCdcOuterBean orderCdcOuterBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcOuterBean, BrandTopnBean>.Context context, Collector<BrandTopnBean> collector) throws Exception {
-
-                        BroadcastState<Long, OrderCdcInnerBean> broadcastState = context.getBroadcastState(desc);
-
-                        OrderCdcInnerBean orderBean = orderCdcOuterBean.getAfter();
-
-
-                        // 将收到的订单主表数据，放入广播状态
-                        long orderId = orderBean.getId();
-                        broadcastState.put(orderId, orderBean);
-
-                    }
-
-                    @Override
-                    public void onTimer(long timestamp, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcOuterBean, BrandTopnBean>.OnTimerContext ctx, Collector<BrandTopnBean> out) throws Exception {
-
-                        long stat_start = timestamp - 60*1000;
-                        long stat_end = timestamp;
-
-                        log.warn("---------------------------------");
-                        ReadOnlyBroadcastState<Long, OrderCdcInnerBean> broadcastState = ctx.getBroadcastState(desc);
-
-                        //  itemId->金额  ,用于对每个商品聚合总支付额
-                        HashMap<Long, BigDecimal> aggMap = new HashMap<>();
-
-                        // 遍历items状态中的每一条商品购买记录，查询它所属的订单是否是支付状态
-                        Iterable<Map.Entry<Long, ItemCdcInnerBean>> entries = itemsState.entries();
-                        for (Map.Entry<Long, ItemCdcInnerBean> entry : entries) {
-
-                            ItemCdcInnerBean itemBean = entry.getValue();
-
-                            long productId = itemBean.getProduct_id();
-                            BigDecimal price = itemBean.getProduct_price();
-                            int quantity = itemBean.getProduct_quantity();
-                            long orderId = itemBean.getOrder_id();
-
-                            // 从订单主数据的广播状态中，查询该订单的支付状态
-                            OrderCdcInnerBean orderBean = broadcastState.get(orderId);
-                            int status = orderBean.getStatus();
-                            // 查询订单的支付时间
-                            long paymentTime = orderBean.getPayment_time() - 8*60*60*1000;
-
-                            // 如果订单是已支付,且订单支付时间在本小时区间
-                            if ( (status == 1 || status==2 || status == 3) &&  paymentTime >= stat_start && paymentTime< stat_end) {
-                                // 对 item的总额累加
-                                BigDecimal oldAmt = aggMap.get(productId);
-                                if (oldAmt == null) {
-                                    oldAmt = BigDecimal.ZERO;
-                                }
-                                aggMap.put(productId, oldAmt.add(price.multiply(BigDecimal.valueOf(quantity))));
                             }
-                        }
+
+                            @Override
+                            public void processElement(ItemCdcInnerBean itemBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.ReadOnlyContext readOnlyContext, Collector<BrandTopnBean> collector) throws Exception {
+
+                                // 初始定时器注册
+                                Long timerTime = timerState.value();
+                                if (timerTime == null) {
+                                    timerTime = (readOnlyContext.currentProcessingTime() / 60000) * 60000 + 60 * 1000;
+                                    readOnlyContext.timerService().registerProcessingTimeTimer(timerTime);
+                                    timerState.update(timerTime);
+                                }
+
+                                // 将收到的item记录，存入状态，新增或覆盖
+                                long id = itemBean.getId();
+                                itemsState.put(id, itemBean);
+                            }
+
+                            @Override
+                            public void processBroadcastElement(OrderCdcInnerBean orderBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.Context context, Collector<BrandTopnBean> collector) throws Exception {
+
+                                BroadcastState<Long, OrderCdcInnerBean> broadcastState = context.getBroadcastState(desc);
+
+                                // 将收到的订单主表数据，放入广播状态 (新增或覆盖：只保留最新的数据状态）
+                                long orderId = orderBean.getId();
+                                broadcastState.put(orderId, orderBean);
+
+                            }
+
+                            @Override
+                            public void onTimer(long timestamp, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.OnTimerContext ctx, Collector<BrandTopnBean> out) throws Exception {
+                                // 算出本次触发所统计的 时间窗口范围
+                                long stat_start = timestamp - 60 * 1000;
+                                long stat_end = timestamp;
+
+                                // 获得存储订单主表数据的 广播状态
+                                ReadOnlyBroadcastState<Long, OrderCdcInnerBean> broadcastState = ctx.getBroadcastState(desc);
+
+                                // 构造一个临时 hashmap ：[商品Id|商品名 -> 支付总额] ,用于对每个商品聚合总支付额
+                                HashMap<String, BigDecimal> aggMap = new HashMap<>();
+
+                                // 遍历items状态中的每一条商品购买记录，查询它所属的订单是否是支付状态
+                                Iterable<Map.Entry<Long, ItemCdcInnerBean>> entries = itemsState.entries();
+                                for (Map.Entry<Long, ItemCdcInnerBean> entry : entries) {
+                                    // 取出一条item数据
+                                    ItemCdcInnerBean itemBean = entry.getValue();
+
+                                    // 取出item数据的各个字段
+                                    long id = itemBean.getId();
+                                    long productId = itemBean.getProduct_id();
+                                    String productName = itemBean.getProduct_name();
+                                    BigDecimal price = itemBean.getProduct_price();
+                                    int quantity = itemBean.getProduct_quantity();
+                                    long orderId = itemBean.getOrder_id();
+
+                                    // 从广播状态取出一条 订单主表 数据
+                                    OrderCdcInnerBean orderBean = broadcastState.get(orderId);
+                                    // 取到这条订单的支付状态
+                                    int status = orderBean.getStatus();
+                                    // 取到这条订单的支付时间 （由于mysql的时区问题，这里要-8个小时）
+                                    long paymentTime = orderBean.getPayment_time() - 8 * 60 * 60 * 1000L;
+
+                                    // 如果订单是已支付,且订单支付时间在本小时区间
+                                    if ((status == 1 || status == 2 || status == 3) && paymentTime >= stat_start && paymentTime < stat_end) {
+                                        // 取出该商品的支付额历史累加值
+                                        BigDecimal oldAmt = aggMap.get(productId + "\001" + productName);
+                                        if (oldAmt == null) {
+                                            oldAmt = BigDecimal.ZERO;
+                                        }
+
+                                        // 将该商品的已累计支付额 加上 本条数据的 支付额，放入聚合map
+                                        aggMap.put(productId + "\001" + productName, oldAmt.add(price.multiply(BigDecimal.valueOf(quantity))));
+                                    }
+                                }
 
 
-                        for (Map.Entry<Long, BigDecimal> entry : aggMap.entrySet()) {
-                            System.out.println(new BrandTopnBean(ctx.getCurrentKey(), entry.getKey(), entry.getValue(), stat_start, stat_end));
-                        }
+                                // 构造一个TreeMap用于排序求topn
+                                TreeMap<BrandTopnBean, String> sortMap = new TreeMap<>();
+
+                                // 遍历金额聚合map
+                                for (Map.Entry<String, BigDecimal> entry : aggMap.entrySet()) {
+                                    // map中的 key是 : "商品id\001商品名称"
+                                    String[] pidAndName = entry.getKey().split("\001");
+                                    long pid = Long.parseLong(pidAndName[0]);
+                                    String pName = pidAndName[1];
+
+                                    BrandTopnBean brandTopnBean = new BrandTopnBean(ctx.getCurrentKey(), pid, pName, entry.getValue(), stat_start, stat_end);
 
 
-                        Long newTimerTime = timerState.value() + 60*1000;
-                        timerState.update(newTimerTime);
-                        ctx.timerService().registerProcessingTimeTimer(newTimerTime);
 
-                    }
-                });
+                                    // 将aggMap取出的这条数据，放入TreeMap中自动排序
+                                    sortMap.put(brandTopnBean,null);
+                                    // 如果treeMap中的数据条数已经大于topn个，则移除最后一个
+                                    if(sortMap.size()>2){
+                                        sortMap.pollLastEntry();
+                                    }
+                                }
 
 
+                                // 输出topn结果
+                                for (Map.Entry<BrandTopnBean, String> entry : sortMap.entrySet()) {
+                                    out.collect(entry.getKey());
+                                }
+
+                                // 注册下一轮触发定时器
+                                long newTimerTime = timerState.value() + 60 * 1000;
+                                timerState.update(newTimerTime);
+                                ctx.timerService().registerProcessingTimeTimer(newTimerTime);
+
+                            }
+                        });
+
+        // 将结果写入mysql
+        SinkFunction<BrandTopnBean> sink = JdbcSink.sink(
+                //"insert into brand_payed_topn_item_m (dash_name, time_start, time_end,product_brand,product_id,product_name,product_amount) values (?,?, ?,?,?,?,?) on duplicate key update dash_name='topn看板' ",
+                "insert into brand_payed_topn_item_m (dash_name, time_start, time_end,product_brand,product_id,product_name,product_amount) values (?,?, ?,?,?,?,?)  ",
+                (statement, bean) -> {
+                    statement.setString(1,"topn看板");
+                    statement.setLong(2,bean.getStatic_start_time());
+                    statement.setLong(3,bean.getStatic_end_time());
+                    statement.setString(4,bean.getBrand());
+                    statement.setLong(5,bean.getProduct_id());
+                    statement.setString(6,bean.getProduct_name());
+                    statement.setBigDecimal(7, bean.getProduct_amt());
+                },
+                JdbcExecutionOptions.builder()
+                        .withBatchSize(1000)
+                        .withBatchIntervalMs(200)
+                        .withMaxRetries(5)
+                        .build(),
+                new JdbcConnectionOptions.JdbcConnectionOptionsBuilder()
+                        .withUrl("jdbc:mysql://doitedu:3306/realtimedw")
+                        .withDriverName("com.mysql.jdbc.Driver")
+                        .withUsername("root")
+                        .withPassword("root")
+                        .build()
+        );
+        res.addSink(sink);
         env.execute();
-
-
-    }
-
-
-    @Data
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class SortBean implements Comparable<SortBean> {
-        private String brand;
-        private long itemId;
-        private BigDecimal amt;
-
-        @Override
-        public int compareTo(SortBean o) {
-            return this.amt.compareTo(o.amt);
-        }
     }
 
 }

@@ -28,6 +28,7 @@ import org.apache.flink.util.Collector;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 
 import java.math.BigDecimal;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,15 +44,7 @@ import java.util.Map;
 public class Job6_BrandTopnPayedProduct_API {
     public static void main(String[] args) throws Exception {
 
-        // 'taskmanager.memory.network.fraction',
-        // 'taskmanager.memory.network.min',
-        // 'taskmanager.memory.network.max'.
-
         Configuration conf = new Configuration();
-        //conf.setDouble("taskmanager.memory.network.fraction",0.2);
-        //conf.setString("taskmanager.memory.network.min","128mb");
-        //conf.setString("taskmanager.memory.network.max","1gb");
-
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(conf);
         env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt/");
@@ -61,7 +54,6 @@ public class Job6_BrandTopnPayedProduct_API {
         HashMap<String, Object> schemaConfigs = new HashMap<>();
         schemaConfigs.put(JsonConverterConfig.DECIMAL_FORMAT_CONFIG, "numeric");
 
-
         MySqlSource<String> mySqlSource1 = MySqlSource.<String>builder()
                 .hostname("doitedu")
                 .port(3306)
@@ -69,12 +61,12 @@ public class Job6_BrandTopnPayedProduct_API {
                 .tableList("realtimedw.oms_order") // set captured table
                 .username("root")
                 .password("root")
+                .serverTimeZone("Asia/Shanghai")
                 .deserializer(new JsonDebeziumDeserializationSchema(false, schemaConfigs)) // converts SourceRecord to JSON String
                 .build();
 
         DataStreamSource<String> orderCdcStream = env.fromSource(mySqlSource1, WatermarkStrategy.noWatermarks(), "cdc");
         SingleOutputStreamOperator<OrderCdcOuterBean> orderOuterBeanStream = orderCdcStream.map(json -> JSON.parseObject(json, OrderCdcOuterBean.class));
-
 
         MySqlSource<String> mySqlSource2 = MySqlSource.<String>builder()
                 .hostname("doitedu")
@@ -96,30 +88,18 @@ public class Job6_BrandTopnPayedProduct_API {
                 .broadcast(orderStateDesc);
 
 
-        orderOuterBeanStream.print();
-        itemOuterBeanStream.print();
+        //orderOuterBeanStream.print();
+        //itemOuterBeanStream.print();
+
+        System.out.println(ZoneId.systemDefault());
 
         // 2. 对item数据，按品牌分区 ,连接广播流
         itemOuterBeanStream
                 .map(ItemCdcOuterBean::getAfter)
                 .keyBy(ItemCdcInnerBean::getProduct_brand)
                 .connect(broadcast)
-                .process(new KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, String>() {
-                    @Override
-                    public void processElement(ItemCdcInnerBean itemCdcInnerBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, String>.ReadOnlyContext readOnlyContext, Collector<String> collector) throws Exception {
-
-                        System.out.println("p----" + itemCdcInnerBean);
-                    }
-
-                    @Override
-                    public void processBroadcastElement(OrderCdcInnerBean orderCdcInnerBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, String>.Context context, Collector<String> collector) throws Exception {
-                        System.out.println("b----" + orderCdcInnerBean);
-                    }
-                })
+                .process(new TopnKeyedBroadcastProcessFunction())
                 .print();
-
         env.execute();
-
     }
-
 }
