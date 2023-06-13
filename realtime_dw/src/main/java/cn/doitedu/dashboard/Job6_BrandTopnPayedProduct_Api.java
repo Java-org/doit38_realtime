@@ -199,8 +199,6 @@ public class Job6_BrandTopnPayedProduct_Api {
 
                                     BrandTopnBean brandTopnBean = new BrandTopnBean(ctx.getCurrentKey(), pid, pName, entry.getValue(), stat_start, stat_end);
 
-
-
                                     // 将aggMap取出的这条数据，放入TreeMap中自动排序
                                     sortMap.put(brandTopnBean,null);
                                     // 如果treeMap中的数据条数已经大于topn个，则移除最后一个
@@ -219,7 +217,6 @@ public class Job6_BrandTopnPayedProduct_Api {
                                 long newTimerTime = timerState.value() + 60 * 1000;
                                 timerState.update(newTimerTime);
                                 ctx.timerService().registerProcessingTimeTimer(newTimerTime);
-
                             }
                         });
 
