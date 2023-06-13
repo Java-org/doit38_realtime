@@ -11,6 +11,7 @@
     <modules>
         <module>realtime_dw</module>
         <module>batch_jobs</module>
+        <module>rt_rule_marketing</module>
     </modules>
 
     <properties>
