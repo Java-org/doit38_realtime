@@ -21,10 +21,9 @@ public class Job5_OrderDaySettlement_Sql {
                 "CREATE TABLE order_mysql (    " +
                         "      id BIGINT," +
                         "      status INT,                    " +
-                        "      paytime timestamp(3),          " +
-                        "      other STRING,                  " +
+                        "      payment_time timestamp(3),     " +
                         "      pt as proctime()     ,         " +
-                        "      rt as paytime        ,         " +
+                        "      rt as payment_time        ,         " +
                         "      watermark for rt as rt - interval '0' second ,  " +
                         "     PRIMARY KEY (id) NOT ENFORCED       " +
                         "     ) WITH (                            " +
@@ -42,9 +41,10 @@ public class Job5_OrderDaySettlement_Sql {
                 "CREATE TABLE item_mysql (    " +
                         "      id BIGINT," +
                         "      oid BIGINT,                    " +
-                        "      pid BIGINT,                    " +
-                        "      price decimal(10,2),          " +
-                        "      brand STRING,                  " +
+                        "      product_id BIGINT,             " +
+                        "      product_price decimal(10,2),   " +
+                        "      product_quantity INT,          " +
+                        "      product_brand STRING,              " +
                         "     PRIMARY KEY (id) NOT ENFORCED       " +
                         "     ) WITH (                            " +
                         "     'connector' = 'mysql-cdc',          " +
@@ -65,13 +65,13 @@ public class Job5_OrderDaySettlement_Sql {
                         " from                                      "+
                         " order_mysql                               "+
                         " where                                     "+
-                        "   paytime is not null                     "+
+                        "   payment_time is not null                     "+
                         "   and (status=1 or status=2 or status=3 ) "+
                         " )                                         "+
                         " SELECT                                    "+
                         "   od.id AS oid,                           "+
                         "   od.status,                              "+
-                        "   od.paytime,                             "+
+                        "   od.payment_time,                             "+
                         "   it.*                                    "+
                         " FROM  od                                  "+
                         " LEFT JOIN                                 "+
@@ -87,12 +87,13 @@ public class Job5_OrderDaySettlement_Sql {
         Schema schema = Schema.newBuilder()
                 .column("oid", DataTypes.BIGINT())
                 .column("status", DataTypes.INT())
-                .column("paytime", DataTypes.TIMESTAMP(3))
+                .column("payment_time", DataTypes.TIMESTAMP(3))
                 .column("id", DataTypes.BIGINT())
-                .column("pid", DataTypes.BIGINT())
-                .column("price", DataTypes.DECIMAL(10,2))
-                .column("brand", DataTypes.STRING())
-                .columnByExpression("rt", "paytime")
+                .column("product_id", DataTypes.BIGINT())
+                .column("product_price", DataTypes.DECIMAL(10,2))
+                .column("product_quantity", DataTypes.INT())
+                .column("product_brand", DataTypes.STRING())
+                .columnByExpression("rt", "payment_time")
                 .watermark("rt", "rt - interval '0' second")
                 .build();
         DataStream<Row> ds = tenv.toChangelogStream(tenv.from("joined"));
@@ -110,24 +111,24 @@ public class Job5_OrderDaySettlement_Sql {
                         "        tumble_start(rt,interval '1' minute) as w_start                         "+
                         "        ,tumble_end(rt,interval '1' minute) as w_end                            "+
                         "        ,tumble_rowtime(rt,interval '1' minute) as rt                           "+
-                        "        ,brand,                                                                 "+
-                        "        ,pid,                                                                   "+
-                        "        ,sum(price) as pamt                                                     "+
+                        "        ,product_brand,                                                         "+
+                        "        ,product_id,                                                            "+
+                        "        ,sum(product_price * product_quantity) as product_amount                "+
                         "    from timed                                                                  "+
                         "    group by                                                                    "+
                         "    tumble(rt,interval '1' minute)                                              "+
-                        "    ,brand                                                                      "+
-                        "    ,pid                                                                        "+
+                        "    ,product_brand                                                              "+
+                        "    ,product_id                                                                 "+
                         "  )                                                                             "+
                         "                                                                                "+
                         " SELECT * FROM (                                                                "+
                         " SELECT                                                                         "+
                         "   w_start,                                                                     "+
                         "   w_end,                                                                       "+
-                        "   brand,                                                                       "+
-                        "   pid,                                                                         "+
-                        "   pamt,                                                                        "+
-                        "   row_number() over(partition by w_start,w_end,brand order by pamt desc) as rn "+
+                        "   product_brand,                                                               "+
+                        "   product_id,                                                                  "+
+                        "   product_amount,                                                              "+
+                        "   row_number() over(partition by w_start,w_end,product_brand order by product_amount desc) as rn "+
                         " from tmp ) WHERE rn<=2                                                         "
                 );
 
@@ -139,15 +140,15 @@ public class Job5_OrderDaySettlement_Sql {
                 " CREATE TABLE mysql_sink (                      "
                         +"   window_start timestamp(3),                      "
                         +"   window_end timestamp(3),                        "
-                        +"   brand     STRING,                               "
+                        +"   product_brand     STRING,                       "
                         +"   product_id   BIGINT,                            "
                         +"   product_pay_amount   DECIMAL(10,2),             "
                         +"   rn   BIGINT,                                    "
-                        +"   PRIMARY KEY (window_start,window_end,brand,product_id) NOT ENFORCED "
+                        +"   PRIMARY KEY (window_start,window_end,product_brand,product_id) NOT ENFORCED "
                         +" ) WITH (                                          "
                         +"    'connector' = 'jdbc',                          "
                         +"    'url' = 'jdbc:mysql://doitedu:3306/rtmk',      "
-                        +"    'table-name' = 'dashboard_brand_topn_item',    "
+                        +"    'table-name' = 'dashboard_product_brand_topn_item',    "
                         +"    'username' = 'root',                           "
                         +"    'password' = 'root'                            "
                         +" )                                                 "

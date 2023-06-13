@@ -1,10 +1,37 @@
 {
-  "user_id": 3,
-  "event_id": "search",
-  "event_time": 1670596213000,
-  "properties": {
-    "keyword": "usb 移动固态",
-    "search_id": "sc01",
-    "res_cnt": 10
+  "ruleId":"rule-001",
+  "static_profile":[
+    {
+      "tag_name": "age",
+      "compare_op": "in",
+      "compare_value": [30,40]
+    },
+    {
+      "tag_name": "gender",
+      "compare_op": "=",
+      "compare_value": ["male"]
+    }
+  ],
+  "dynamic_profile": [
+    {
+      "flag_id": 1,
+      "event_id": "w",
+      "event_cnt": 3
+    },
+    {
+      "flag_id": 2,
+      "event_id": "t",
+      "event_cnt": 2
+    }
+  ],
+  "fire_event": {
+    "event_id": "x",
+    "properties": [
+      {
+        "property_name": "p1",
+        "compare_op": "=",
+        "compare_value": "v1"
+      }
+    ]
   }
 }
