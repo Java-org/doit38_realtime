@@ -54,7 +54,7 @@ import java.io.IOException;
  * }
  * }
  */
-public class Rule1Calculator implements RuleCalculator {
+public class RuleModel1ModelCalculator implements RuleModelCalculator {
 
     JSONObject paramObject;
     MapState<Integer, Integer> state;

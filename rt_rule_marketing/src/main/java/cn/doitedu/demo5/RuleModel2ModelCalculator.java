@@ -7,7 +7,7 @@ import org.apache.flink.util.Collector;
 
 import java.io.IOException;
 
-public class Rule2Calculator implements RuleCalculator {
+public class RuleModel2ModelCalculator implements RuleModelCalculator {
 
     String eventId;
     JSONObject message;

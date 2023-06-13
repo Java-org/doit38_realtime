@@ -1,37 +1,22 @@
 {
-  "ruleId":"rule-001",
+  "rule_id":"rule-002",
   "static_profile":[
     {
       "tag_name": "age",
-      "compare_op": "in",
-      "compare_value": [30,40]
-    },
-    {
-      "tag_name": "gender",
       "compare_op": "=",
-      "compare_value": ["male"]
+      "compare_value": 20
     }
   ],
   "dynamic_profile": [
     {
       "flag_id": 1,
-      "event_id": "w",
-      "event_cnt": 3
-    },
-    {
-      "flag_id": 2,
-      "event_id": "t",
+      "event_id": "q",
       "event_cnt": 2
     }
   ],
   "fire_event": {
-    "event_id": "x",
+    "event_id": "g",
     "properties": [
-      {
-        "property_name": "p1",
-        "compare_op": "=",
-        "compare_value": "v1"
-      }
     ]
   }
 }

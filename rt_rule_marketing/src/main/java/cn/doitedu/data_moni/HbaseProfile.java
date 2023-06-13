@@ -25,28 +25,34 @@ public class HbaseProfile {
         // 插入数据
         Put put1 = new Put(Bytes.toBytes(1L));
         put1.addColumn("f".getBytes(),"gender".getBytes(),"male".getBytes());
-        put1.addColumn("f".getBytes(),"active_level".getBytes(),Bytes.toBytes(3));
-        put1.addColumn("f".getBytes(),"age".getBytes(),Bytes.toBytes(30));
+        put1.addColumn("f".getBytes(),"active_level".getBytes(),Bytes.toBytes("3"));
+        put1.addColumn("f".getBytes(),"age".getBytes(),Bytes.toBytes("30"));
 
 
         Put put2 = new Put(Bytes.toBytes(2L));
         put2.addColumn("f".getBytes(),"gender".getBytes(),"male".getBytes());
-        put2.addColumn("f".getBytes(),"active_level".getBytes(),Bytes.toBytes(2));
-        put2.addColumn("f".getBytes(),"age".getBytes(),Bytes.toBytes(30));
+        put2.addColumn("f".getBytes(),"active_level".getBytes(),Bytes.toBytes("2"));
+        put2.addColumn("f".getBytes(),"age".getBytes(),Bytes.toBytes("30"));
 
 
         Put put3 = new Put(Bytes.toBytes(3L));
         put3.addColumn("f".getBytes(),"gender".getBytes(),"female".getBytes());
-        put3.addColumn("f".getBytes(),"active_level".getBytes(),Bytes.toBytes(3));
-        put3.addColumn("f".getBytes(),"age".getBytes(),Bytes.toBytes(28));
+        put3.addColumn("f".getBytes(),"active_level".getBytes(),Bytes.toBytes("3"));
+        put3.addColumn("f".getBytes(),"age".getBytes(),Bytes.toBytes("28"));
 
 
         Put put4 = new Put(Bytes.toBytes(4L));
         put4.addColumn("f".getBytes(),"gender".getBytes(),"female".getBytes());
-        put4.addColumn("f".getBytes(),"active_level".getBytes(),Bytes.toBytes(2));
-        put4.addColumn("f".getBytes(),"age".getBytes(),Bytes.toBytes(32));
+        put4.addColumn("f".getBytes(),"active_level".getBytes(),Bytes.toBytes("2"));
+        put4.addColumn("f".getBytes(),"age".getBytes(),Bytes.toBytes("32"));
 
-        List<Put> putList = Arrays.asList(put1, put2, put3, put4);
+
+        Put put5 = new Put(Bytes.toBytes(5L));
+        put5.addColumn("f".getBytes(),"gender".getBytes(),"female".getBytes());
+        put5.addColumn("f".getBytes(),"active_level".getBytes(),Bytes.toBytes("2"));
+        put5.addColumn("f".getBytes(),"age".getBytes(),Bytes.toBytes("20"));
+
+        List<Put> putList = Arrays.asList(put1, put2, put3, put4,put5);
 
         table.put(putList);
 

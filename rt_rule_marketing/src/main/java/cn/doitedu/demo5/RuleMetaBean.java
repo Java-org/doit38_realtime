@@ -15,5 +15,6 @@ public class RuleMetaBean {
     private String ruleId;
     private String ruleModelId;
     private String ruleParamJson;
+    private int onlineStatus;
 
 }

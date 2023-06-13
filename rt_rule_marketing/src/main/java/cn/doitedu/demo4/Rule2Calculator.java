@@ -13,7 +13,7 @@ public class Rule2Calculator implements RuleCalculator{
     JSONObject message;
     @Override
     public void init(String ruleParamJson, RuntimeContext runtimeContext) throws IOException {
-        // {"rule_id":"rule-002","event_id":"x"}
+        // {"rule_id":"rule-003","event_id":"x"}
         JSONObject jsonObject = JSON.parseObject(ruleParamJson);
         eventId = jsonObject.getString("event_id");
         String ruleId = jsonObject.getString("rule_id");
