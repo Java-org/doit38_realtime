@@ -39,7 +39,7 @@ import java.util.HashMap;
  * 订单日清日结看板指标
  **/
 @Slf4j
-public class Job5_OrderDaySettlement {
+public class Job5_OrderDaySettlement_Api {
     public static void main(String[] args) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();

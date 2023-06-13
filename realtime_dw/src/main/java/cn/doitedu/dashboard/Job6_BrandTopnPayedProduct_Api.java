@@ -41,7 +41,7 @@ import java.util.TreeMap;
  * 实时看板指标： 每小时 ，每个品牌中， 已支付金额最大的前 N个商品
  **/
 @Slf4j
-public class Job6_BrandTopnPayedProduct_API2 {
+public class Job6_BrandTopnPayedProduct_Api {
     public static void main(String[] args) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
