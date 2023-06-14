@@ -193,6 +193,14 @@
             <version>4.3.1</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap -->
+        <dependency>
+            <groupId>org.roaringbitmap</groupId>
+            <artifactId>RoaringBitmap</artifactId>
+            <version>0.9.44</version>
+        </dependency>
+
+
     </dependencies>
 
 </project>
