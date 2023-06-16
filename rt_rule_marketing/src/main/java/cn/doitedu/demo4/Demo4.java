@@ -31,7 +31,7 @@ import java.util.HashMap;
  * @Date: 2023/6/13
  * @Desc: 学大数据，上多易教育
  * 实时监控app上的所有用户的所有行为
- * 相较 demo3的变化： 规则处理逻辑的模块化抽离
+ * 相较 demo3的变化： 规则处理逻辑的模块化抽离; 抽象出规则处理器的统一接口：规则运算机
 **/
 public class Demo4 {
     public static void main(String[] args) throws Exception {

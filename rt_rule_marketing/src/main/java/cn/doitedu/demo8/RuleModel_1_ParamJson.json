@@ -1,0 +1,32 @@
+{
+  "rule_id": "rule-001",
+  "static_profile": [
+    {
+      "tag_name": "age",
+      "compare_op": ">",
+      "compare_value": 30
+    },
+    {
+      "tag_name": "gender",
+      "compare_op": "=",
+      "compare_value": "male"
+    }
+  ],
+  "dynamic_profile": [
+    {
+      "flag_id": 1,
+      "event_id": "w",
+      "event_cnt": 3
+    }
+  ],
+  "fire_event": {
+    "event_id": "x",
+    "properties": [
+      {
+        "property_name": "p1",
+        "compare_op": "=",
+        "compare_value": "v1"
+      }
+    ]
+  }
+}
