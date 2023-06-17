@@ -90,18 +90,39 @@ public class Job6_TopnProductPerBrandMinute_SQL_ProcessTime {
                         " ON o.id = i.oid                                                                                    "
                 );
 
-        /* DataStream<Row> joinedStream = tenv.toChangelogStream(tenv.from("joined"));
-        // 将changelog流 ，转成了只有+I语义的 append-only流
+        // ------------------------------------------------------------------------------------
+        // 后续的窗口聚合中，会存在一个问题
+        //   假如 在窗口1 [15分 ~ 16分] 中，有如下数据进入系统
+        //       +I pid-01, 5000
+        //       +I pid-01, 1000
+        //   那么，在窗口1触发时，输出的  商品总金额为：  pid-01, 6000
+        //   假如 在窗口2 [16分 ~ 17分] 中，有如下数据进入系统
+        //       -U pid-01, 5000  (这里是对此前进入的数据的更新）
+        //       +U pid-01, 8000  (这里是对此前进入的数据的更新）
+        //       pid-01, 1000   (这里是新进入的数据）
+        //   那么，在窗口2触发时，咱们期待的结果是什么呢？
+        //      在不做任何特别处理时，后续的groupBy(滚动窗口)  将输出：  -5000 + 8000 + 1000 = 4000
+        //   如果我们想要的结果是 :  8000 + 1000 = 9000
+        //      需要做特别处理：把join后的这个changelog流中的 -U 行过滤掉
+        //   具体做法有如下两种：
+
+        /* * 方法1： 通过流式api的辅助，保留 +I 和 +U 语义行，并将 +U 转变成  +I
+        // 等价于changelog流 => 纯正的 append-only流
+        // 并最终转回视图
+        DataStream<Row> joinedStream = tenv.toChangelogStream(tenv.from("joined"));
+        // 将 changelog流 ，转成只有+I语义的 append-only流
         SingleOutputStreamOperator<Row> filteredRows = joinedStream.filter(row -> {
             boolean b = "+I".equals(row.getKind().shortString()) || "+U".equals(row.getKind().shortString());
             row.setKind(RowKind.INSERT);
             return b;
         });
-        //
-        tenv.createTemporaryView("tmp", filteredRows); // 只支持append-only(+I) 语义
-        tenv.executeSql("select * from tmp").print(); */
+        // 将append-only流， 转成 临时视图
+        tenv.createTemporaryView("tmp", filteredRows); // 只支持 append-only(+I) 语义
+        tenv.executeSql("select * from tmp").print();
+        */
 
 
+        // 方法2： 通过流式api的辅助，保留 +I 和 +U 两种语义行，并最终转回视图
         DataStream<Row> joinedStream = tenv.toChangelogStream(tenv.from("joined"));
         SingleOutputStreamOperator<Row> filteredRows = joinedStream.filter(row -> {
             return "+I".equals(row.getKind().shortString()) || "+U".equals(row.getKind().shortString());
@@ -110,6 +131,7 @@ public class Job6_TopnProductPerBrandMinute_SQL_ProcessTime {
         // tenv.createTemporaryView("tmp", filteredRows);  // 只支持append-only(+I) 语义
         tenv.createTemporaryView("filtered",tenv.fromChangelogStream(filteredRows));
 
+        // ---------------------------------------------------------------------------------
 
         // 4. 窗口统计
         tenv.executeSql(
