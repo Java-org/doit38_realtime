@@ -6,24 +6,21 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 
 
 @Data
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderCdcInnerBean {
-    private long id;
+public class OrderCdcData {
+    private Long id;
     private BigDecimal total_amount;
     private BigDecimal pay_amount;
     private int status;
-    private int confirm_status;
-    private long create_time;
-    private long payment_time;
-    private long delivery_time;
-    private long receive_time;
-    private long modify_time;
-
-
-
+    private Timestamp create_time;
+    private Timestamp payment_time;
+    private Timestamp delivery_time;
+    private Timestamp confirm_time;
+    private Timestamp update_time;
 }

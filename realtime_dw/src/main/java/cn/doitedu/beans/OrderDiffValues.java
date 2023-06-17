@@ -22,6 +22,7 @@ import java.sql.Timestamp;
 @AllArgsConstructor
 public class OrderDiffValues {
 
+    private String metricFlag = null;
     private Timestamp outTime = null;
 
     private int totalCount = 0;
@@ -31,13 +32,33 @@ public class OrderDiffValues {
     private int toPayTotalCount = 0;
     private BigDecimal toPayTotalAmount= BigDecimal.ZERO;
 
-
     private int payedTotalCount = 0;
     private BigDecimal payedTotalAmount = BigDecimal.ZERO;
 
     private int deliveredTotalCount = 0;
     private BigDecimal deliveredTotalAmount = BigDecimal.ZERO;
 
-    private int completedTotalCount = 0;
-    private BigDecimal completedTotalAmount = BigDecimal.ZERO;
+    private int confirmedTotalCount = 0;
+    private BigDecimal confirmedTotalAmount = BigDecimal.ZERO;
+
+
+    public void clear(){
+        this.outTime = null;
+        this.metricFlag = null;
+        this.totalCount = 0;
+        this.totalOriginAmount = BigDecimal.ZERO;
+        this.totalRealAmount = BigDecimal.ZERO;
+
+        this.toPayTotalCount = 0;
+        this.toPayTotalAmount= BigDecimal.ZERO;
+
+        this.payedTotalCount = 0;
+        this.payedTotalAmount = BigDecimal.ZERO;
+
+        this.deliveredTotalCount = 0;
+        this.deliveredTotalAmount = BigDecimal.ZERO;
+
+        this.confirmedTotalCount = 0;
+        this.confirmedTotalAmount = BigDecimal.ZERO;
+    }
 }

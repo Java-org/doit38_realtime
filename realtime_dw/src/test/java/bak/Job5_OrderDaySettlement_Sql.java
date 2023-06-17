@@ -1,4 +1,4 @@
-package cn.doitedu.dashboard;
+package bak;
 
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -134,7 +134,7 @@ public class Job5_OrderDaySettlement_Sql {
 
 
         /* *
-         *  创建mysql中的结果表映射 ------------------------------------------
+         *  创建 mysql中的结果表映射 ------------------------------------------
          */
         tenv.executeSql(
                 " CREATE TABLE mysql_sink (                      "

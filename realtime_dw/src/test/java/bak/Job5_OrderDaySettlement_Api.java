@@ -1,7 +1,7 @@
-package cn.doitedu.dashboard;
+package bak;
 
-import cn.doitedu.beans.OrderCdcInnerBean;
-import cn.doitedu.beans.OrderCdcOuterBean;
+import cn.doitedu.beans.OrderCdcData;
+import cn.doitedu.beans.OrderCdcRecord;
 import cn.doitedu.beans.OrderDiffValues;
 import com.alibaba.fastjson.JSON;
 import com.ververica.cdc.connectors.mysql.source.MySqlSource;
@@ -75,8 +75,8 @@ public class Job5_OrderDaySettlement_Api {
             发货订单数、订单额  （当日发货）
             完成订单数、订单额  （当日确认）
          */
-        SingleOutputStreamOperator<OrderCdcOuterBean> beanStream
-                = cdcStream.map(json -> JSON.parseObject(json, OrderCdcOuterBean.class));
+        SingleOutputStreamOperator<OrderCdcRecord> beanStream
+                = cdcStream.map(json -> JSON.parseObject(json, OrderCdcRecord.class));
 
         /**
          * 计算整体方案
@@ -86,11 +86,11 @@ public class Job5_OrderDaySettlement_Api {
          *     2.2  全局单并行：把上游输入过来的持续不断的 “调整值“ 进行累加
          */
         SingleOutputStreamOperator<OrderDiffValues> valueChangeStream = beanStream.keyBy(outer -> outer.getAfter().getId())
-                .process(new KeyedProcessFunction<Long, OrderCdcOuterBean, OrderDiffValues>() {
+                .process(new KeyedProcessFunction<Long, OrderCdcRecord, OrderDiffValues>() {
                     @Override
-                    public void processElement(OrderCdcOuterBean orderCdcOuterBean, KeyedProcessFunction<Long, OrderCdcOuterBean, OrderDiffValues>.Context context, Collector<OrderDiffValues> collector) throws Exception {
-                        OrderCdcInnerBean before = orderCdcOuterBean.getBefore();
-                        OrderCdcInnerBean after = orderCdcOuterBean.getAfter();
+                    public void processElement(OrderCdcRecord orderCdcOuterBean, KeyedProcessFunction<Long, OrderCdcRecord, OrderDiffValues>.Context context, Collector<OrderDiffValues> collector) throws Exception {
+                        OrderCdcData before = orderCdcOuterBean.getBefore();
+                        OrderCdcData after = orderCdcOuterBean.getAfter();
                         String op = orderCdcOuterBean.getOp();
 
                         // 先构造一个初始值全为0的调整结果bean
@@ -276,8 +276,8 @@ public class Job5_OrderDaySettlement_Api {
         old.setDeliveredTotalCount(old.getDeliveredTotalCount() + cur.getDeliveredTotalCount());
         old.setDeliveredTotalAmount(old.getDeliveredTotalAmount().add(cur.getDeliveredTotalAmount()));
 
-        old.setCompletedTotalCount(old.getCompletedTotalCount() + cur.getCompletedTotalCount());
-        old.setCompletedTotalAmount(old.getCompletedTotalAmount().add(cur.getCompletedTotalAmount()));
+        old.setConfirmedTotalCount(old.getConfirmedTotalCount() + cur.getConfirmedTotalCount());
+        old.setConfirmedTotalAmount(old.getConfirmedTotalAmount().add(cur.getConfirmedTotalAmount()));
 
     }
 

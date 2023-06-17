@@ -1,13 +1,9 @@
-package cn.doitedu.dashboard;
+package bak;
 
 import cn.doitedu.beans.*;
 import com.alibaba.fastjson.JSON;
 import com.ververica.cdc.connectors.mysql.source.MySqlSource;
 import com.ververica.cdc.debezium.JsonDebeziumDeserializationSchema;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.state.*;
@@ -22,7 +18,6 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
-import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 
@@ -71,12 +66,12 @@ public class Job6_BrandTopnPayedProduct_Api {
         DataStreamSource<String> orderCdcStream = env.fromSource(mySqlSource1, WatermarkStrategy.noWatermarks(), "order-cdc");
 
         // 将订单主表数据解析，并只保留after数据，并封装成JavaBean
-        SingleOutputStreamOperator<OrderCdcInnerBean> orderOuterBeanStream =
-                orderCdcStream.map(json -> JSON.parseObject(json, OrderCdcOuterBean.class).getAfter());
+        SingleOutputStreamOperator<OrderCdcData> orderOuterBeanStream =
+                orderCdcStream.map(json -> JSON.parseObject(json, OrderCdcRecord.class).getAfter());
 
         // 广播订单主表数据
-        MapStateDescriptor<Long, OrderCdcInnerBean> desc = new MapStateDescriptor<>("order-bc", Long.class, OrderCdcInnerBean.class);
-        BroadcastStream<OrderCdcInnerBean> broadcast = orderOuterBeanStream.broadcast(desc);
+        MapStateDescriptor<Long, OrderCdcData> desc = new MapStateDescriptor<>("order-bc", Long.class, OrderCdcData.class);
+        BroadcastStream<OrderCdcData> broadcast = orderOuterBeanStream.broadcast(desc);
 
 
         /* *
@@ -99,7 +94,7 @@ public class Job6_BrandTopnPayedProduct_Api {
                         .map(ItemCdcOuterBean::getAfter)  // 只取cdc数据中的after
                         .keyBy(ItemCdcInnerBean::getProduct_brand)  // 按品牌分区
                         .connect(broadcast)  // 连接广播数据（订单主表数据）
-                        .process(new KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>() {
+                        .process(new KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcData, BrandTopnBean>() {
                             MapState<Long, ItemCdcInnerBean> itemsState;
                             ValueState<Long> timerState;
 
@@ -114,7 +109,7 @@ public class Job6_BrandTopnPayedProduct_Api {
                             }
 
                             @Override
-                            public void processElement(ItemCdcInnerBean itemBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.ReadOnlyContext readOnlyContext, Collector<BrandTopnBean> collector) throws Exception {
+                            public void processElement(ItemCdcInnerBean itemBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcData, BrandTopnBean>.ReadOnlyContext readOnlyContext, Collector<BrandTopnBean> collector) throws Exception {
 
                                 // 初始定时器注册
                                 Long timerTime = timerState.value();
@@ -130,9 +125,9 @@ public class Job6_BrandTopnPayedProduct_Api {
                             }
 
                             @Override
-                            public void processBroadcastElement(OrderCdcInnerBean orderBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.Context context, Collector<BrandTopnBean> collector) throws Exception {
+                            public void processBroadcastElement(OrderCdcData orderBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcData, BrandTopnBean>.Context context, Collector<BrandTopnBean> collector) throws Exception {
 
-                                BroadcastState<Long, OrderCdcInnerBean> broadcastState = context.getBroadcastState(desc);
+                                BroadcastState<Long, OrderCdcData> broadcastState = context.getBroadcastState(desc);
 
                                 // 将收到的订单主表数据，放入广播状态 (新增或覆盖：只保留最新的数据状态）
                                 long orderId = orderBean.getId();
@@ -141,13 +136,13 @@ public class Job6_BrandTopnPayedProduct_Api {
                             }
 
                             @Override
-                            public void onTimer(long timestamp, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.OnTimerContext ctx, Collector<BrandTopnBean> out) throws Exception {
+                            public void onTimer(long timestamp, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcData, BrandTopnBean>.OnTimerContext ctx, Collector<BrandTopnBean> out) throws Exception {
                                 // 算出本次触发所统计的 时间窗口范围
                                 long stat_start = timestamp - 60 * 1000;
                                 long stat_end = timestamp;
 
                                 // 获得存储订单主表数据的 广播状态
-                                ReadOnlyBroadcastState<Long, OrderCdcInnerBean> broadcastState = ctx.getBroadcastState(desc);
+                                ReadOnlyBroadcastState<Long, OrderCdcData> broadcastState = ctx.getBroadcastState(desc);
 
                                 // 构造一个临时 hashmap ：[商品Id|商品名 -> 支付总额] ,用于对每个商品聚合总支付额
                                 HashMap<String, BigDecimal> aggMap = new HashMap<>();
@@ -167,7 +162,7 @@ public class Job6_BrandTopnPayedProduct_Api {
                                     long orderId = itemBean.getOrder_id();
 
                                     // 从广播状态取出一条 订单主表 数据
-                                    OrderCdcInnerBean orderBean = broadcastState.get(orderId);
+                                    OrderCdcData orderBean = broadcastState.get(orderId);
                                     // 取到这条订单的支付状态
                                     int status = orderBean.getStatus();
                                     // 取到这条订单的支付时间 （由于mysql的时区问题，这里要-8个小时）

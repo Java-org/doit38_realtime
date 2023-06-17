@@ -1,37 +1,35 @@
 {
-  "ruleId":"rule-001",
-  "static_profile":[
-    {
-      "tag_name": "age",
-      "compare_op": "=",
-      "compare_value": 30
-    },
-    {
-      "tag_name": "gender",
-      "compare_op": "=",
-      "compare_value": ["male"]
-    }
-  ],
-  "dynamic_profile": [
-    {
-      "flag_id": 1,
-      "event_id": "w",
-      "event_cnt": 3
-    },
-    {
-      "flag_id": 2,
-      "event_id": "t",
-      "event_cnt": 2
-    }
-  ],
-  "fire_event": {
-    "event_id": "x",
-    "properties": [
-      {
-        "property_name": "p1",
-        "compare_op": "=",
-        "compare_value": "v1"
-      }
-    ]
-  }
+  "before": null,
+  "after": {
+    "id": 5,
+    "status": 0,
+    "total_amount": 140,
+    "pay_amount": 120,
+    "create_time": "2023-06-17T02:04:10Z",
+    "payment_time": null,
+    "delivery_time": null,
+    "confirm_time": null,
+    "note": "a",
+    "update_time": "2023-06-17T02:04:10Z"
+  },
+  "source": {
+    "version": "1.6.4.Final",
+    "connector": "mysql",
+    "name": "mysql_binlog_source",
+    "ts_ms": 0,
+    "snapshot": "false",
+    "db": "rtmk",
+    "sequence": null,
+    "table": "oms_order",
+    "server_id": 0,
+    "gtid": null,
+    "file": "",
+    "pos": 0,
+    "row": 0,
+    "thread": null,
+    "query": null
+  },
+  "op": "r",
+  "ts_ms": 1686983154329,
+  "transaction": null
 }

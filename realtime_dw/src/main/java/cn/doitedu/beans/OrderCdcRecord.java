@@ -9,10 +9,10 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderCdcOuterBean {
+public class OrderCdcRecord {
 
-    OrderCdcInnerBean before;
-    OrderCdcInnerBean after;
+    OrderCdcData before;
+    OrderCdcData after;
 
     // r / u / c / d
     String op;

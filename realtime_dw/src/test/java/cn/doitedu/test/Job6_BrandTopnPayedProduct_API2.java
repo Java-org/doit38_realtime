@@ -10,22 +10,14 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.CoGroupFunction;
 import org.apache.flink.api.common.state.*;
-import org.apache.flink.api.common.typeinfo.TypeHint;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
-import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
-import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.connect.json.JsonConverterConfig;
@@ -69,10 +61,10 @@ public class Job6_BrandTopnPayedProduct_API2 {
                 .build();
 
         DataStreamSource<String> orderCdcStream = env.fromSource(mySqlSource1, WatermarkStrategy.noWatermarks(), "cdc");
-        SingleOutputStreamOperator<OrderCdcOuterBean> orderOuterBeanStream = orderCdcStream.map(json -> JSON.parseObject(json, OrderCdcOuterBean.class));
+        SingleOutputStreamOperator<OrderCdcRecord> orderOuterBeanStream = orderCdcStream.map(json -> JSON.parseObject(json, OrderCdcRecord.class));
         // 广播出来
-        MapStateDescriptor<Long, OrderCdcInnerBean> desc = new MapStateDescriptor<>("order-bc", Long.class, OrderCdcInnerBean.class);
-        BroadcastStream<OrderCdcOuterBean> broadcast = orderOuterBeanStream.broadcast(desc);
+        MapStateDescriptor<Long, OrderCdcData> desc = new MapStateDescriptor<>("order-bc", Long.class, OrderCdcData.class);
+        BroadcastStream<OrderCdcRecord> broadcast = orderOuterBeanStream.broadcast(desc);
 
 
         MySqlSource<String> mySqlSource2 = MySqlSource.<String>builder()
@@ -91,7 +83,7 @@ public class Job6_BrandTopnPayedProduct_API2 {
                 .map(outer -> outer.getAfter())
                 .keyBy(bean -> bean.getProduct_brand())
                 .connect(broadcast)
-                .process(new KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcOuterBean, SortBean>() {
+                .process(new KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcRecord, SortBean>() {
                     MapState<Long, ItemCdcInnerBean> itemsState;
                     ValueState<Long> timerState;
 
@@ -106,7 +98,7 @@ public class Job6_BrandTopnPayedProduct_API2 {
                     }
 
                     @Override
-                    public void processElement(ItemCdcInnerBean itemBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcOuterBean, SortBean>.ReadOnlyContext readOnlyContext, Collector<SortBean> collector) throws Exception {
+                    public void processElement(ItemCdcInnerBean itemBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcRecord, SortBean>.ReadOnlyContext readOnlyContext, Collector<SortBean> collector) throws Exception {
 
                         Long timerTime = timerState.value();
                         if (timerTime == null) {
@@ -127,16 +119,16 @@ public class Job6_BrandTopnPayedProduct_API2 {
                     }
 
                     @Override
-                    public void processBroadcastElement(OrderCdcOuterBean orderCdcOuterBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcOuterBean, SortBean>.Context context, Collector<SortBean> collector) throws Exception {
+                    public void processBroadcastElement(OrderCdcRecord orderCdcOuterBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcRecord, SortBean>.Context context, Collector<SortBean> collector) throws Exception {
 
 
-                        BroadcastState<Long, OrderCdcInnerBean> broadcastState = context.getBroadcastState(desc);
+                        BroadcastState<Long, OrderCdcData> broadcastState = context.getBroadcastState(desc);
 
-                        OrderCdcInnerBean orderBean = orderCdcOuterBean.getAfter();
+                        OrderCdcData orderBean = orderCdcOuterBean.getAfter();
                         long modifyTime = orderBean.getModify_time();
                         long orderId = orderBean.getId();
 
-                        OrderCdcInnerBean oldOrderBean = broadcastState.get(orderId);
+                        OrderCdcData oldOrderBean = broadcastState.get(orderId);
 
                         if (oldOrderBean != null && oldOrderBean.getModify_time() > modifyTime) {
 
@@ -147,10 +139,10 @@ public class Job6_BrandTopnPayedProduct_API2 {
                     }
 
                     @Override
-                    public void onTimer(long timestamp, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcOuterBean, SortBean>.OnTimerContext ctx, Collector<SortBean> out) throws Exception {
+                    public void onTimer(long timestamp, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcRecord, SortBean>.OnTimerContext ctx, Collector<SortBean> out) throws Exception {
 
                         log.warn("---------------------------------");
-                        ReadOnlyBroadcastState<Long, OrderCdcInnerBean> broadcastState = ctx.getBroadcastState(desc);
+                        ReadOnlyBroadcastState<Long, OrderCdcData> broadcastState = ctx.getBroadcastState(desc);
 
                         //  itemId->金额
                         HashMap<Long, BigDecimal> aggMap = new HashMap<>();
@@ -167,7 +159,7 @@ public class Job6_BrandTopnPayedProduct_API2 {
                             int quantity = itemBean.getProduct_quantity();
                             long orderId = itemBean.getOrder_id();
 
-                            OrderCdcInnerBean orderBean = broadcastState.get(orderId);
+                            OrderCdcData orderBean = broadcastState.get(orderId);
                             int status = orderBean.getStatus();
                             long paymentTime = orderBean.getPayment_time();
 

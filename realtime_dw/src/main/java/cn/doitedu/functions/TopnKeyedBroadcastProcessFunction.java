@@ -2,7 +2,7 @@ package cn.doitedu.functions;
 
 import cn.doitedu.beans.BrandTopnBean;
 import cn.doitedu.beans.ItemCdcInnerBean;
-import cn.doitedu.beans.OrderCdcInnerBean;
+import cn.doitedu.beans.OrderCdcData;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.state.*;
 import org.apache.flink.configuration.Configuration;
@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean> {
+public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcData, BrandTopnBean> {
 
     MapState<Long, ItemCdcInnerBean> itemsState;
     ValueState<Long> timerState;
@@ -33,7 +33,7 @@ public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunc
      * 处理主流数据（商品购买记录）
      */
     @Override
-    public void processElement(ItemCdcInnerBean itemBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.ReadOnlyContext readOnlyContext, Collector<BrandTopnBean> collector) throws Exception {
+    public void processElement(ItemCdcInnerBean itemBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcData, BrandTopnBean>.ReadOnlyContext readOnlyContext, Collector<BrandTopnBean> collector) throws Exception {
 
         // 1,p1,o1,耐克,5,100
         // 2,p2,o1,耐克,2,200
@@ -59,9 +59,9 @@ public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunc
      * 处理广播流数据（订单主表数据）
      */
     @Override
-    public void processBroadcastElement(OrderCdcInnerBean orderBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.Context context, Collector<BrandTopnBean> collector) throws Exception {
+    public void processBroadcastElement(OrderCdcData orderBean, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcData, BrandTopnBean>.Context context, Collector<BrandTopnBean> collector) throws Exception {
 
-        BroadcastState<Long, OrderCdcInnerBean> broadcastState = context.getBroadcastState(new MapStateDescriptor<>("order-state", Long.class, OrderCdcInnerBean.class));
+        BroadcastState<Long, OrderCdcData> broadcastState = context.getBroadcastState(new MapStateDescriptor<>("order-state", Long.class, OrderCdcData.class));
         broadcastState.put(orderBean.getId(), orderBean);
 
         // 将收到的订单主表数据，放入广播状态（新增，覆盖）
@@ -76,7 +76,7 @@ public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunc
 
 
     @Override
-    public void onTimer(long timestamp, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcInnerBean, BrandTopnBean>.OnTimerContext ctx, Collector<BrandTopnBean> out) throws Exception {
+    public void onTimer(long timestamp, KeyedBroadcastProcessFunction<String, ItemCdcInnerBean, OrderCdcData, BrandTopnBean>.OnTimerContext ctx, Collector<BrandTopnBean> out) throws Exception {
 
         log.warn("---- on timer -------------");
 
@@ -85,7 +85,7 @@ public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunc
         long static_start_time = timestamp - 60000;
         long static_end_time = timestamp;
 
-        ReadOnlyBroadcastState<Long, OrderCdcInnerBean> broadcastState = ctx.getBroadcastState(new MapStateDescriptor<>("order-state", Long.class, OrderCdcInnerBean.class));
+        ReadOnlyBroadcastState<Long, OrderCdcData> broadcastState = ctx.getBroadcastState(new MapStateDescriptor<>("order-state", Long.class, OrderCdcData.class));
 
         // 对商品购买明细，遍历，按相同商品聚合
         // 1,p1,o1,耐克,5,100
@@ -107,9 +107,9 @@ public class TopnKeyedBroadcastProcessFunction extends KeyedBroadcastProcessFunc
             int quantity = itemBean.getProduct_quantity();
             BigDecimal price = itemBean.getProduct_price();
 
-            OrderCdcInnerBean orderBean = broadcastState.get(orderId);
+            OrderCdcData orderBean = broadcastState.get(orderId);
             int status = orderBean.getStatus();
-            long paymentTime = orderBean.getPayment_time() + 8*60*60*100L;
+            long paymentTime = orderBean.getPayment_time().getTime() + 8*60*60*100L;
 
             // 如果该商品购买明细所属的订单是已经支付了，且支付时间在本次统计的时间窗口内，则要对该条明细中的金额进行累加
             if ((status == 1 || status == 2 || status == 3) && paymentTime >= static_start_time && paymentTime < static_end_time) {
