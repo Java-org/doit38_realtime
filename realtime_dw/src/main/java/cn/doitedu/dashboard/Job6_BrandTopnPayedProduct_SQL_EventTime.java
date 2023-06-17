@@ -1,4 +1,4 @@
-package bak;
+package cn.doitedu.dashboard;
 
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -18,7 +18,7 @@ import org.apache.flink.types.Row;
  *
  *   实时看板指标： 每小时 ，每个品牌中， 已支付金额最大的前 N个商品
  **/
-public class Job6_BrandTopnPayedProduct_Sql {
+public class Job6_BrandTopnPayedProduct_SQL_EventTime {
     public static void main(String[] args) {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();

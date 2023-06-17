@@ -120,7 +120,8 @@ public class Job3_PromotionQx {
                         "   province,                                                                                        "+
                         "   count(1) as pv_amt,                                                                              "+
                         "   count(distinct user_id) as uv_amt,                                                               "+
-                        "   count(distinct if(is_new=1,user_id,get_null() )) as uv_amt_new                                          "+
+                        //"   count(distinct if(is_new=1,user_id,get_null() )) as uv_amt_new "+    // 用 FILTER语法即可
+                        "   count(distinct user_id) FILTER(where is_new = 1)as uv_amt_new                                    "+
                         "                                                                                                    "+
                         " from TABLE(                                                                                        "+
                         "  CUMULATE(TABLE tmp, DESCRIPTOR(row_time),INTERVAL '5' MINUTE,INTERVAL '24' HOUR)                  "+

@@ -6,7 +6,6 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
-import org.apache.flink.types.RowKind;
 
 import static org.apache.flink.types.Row.withNames;
 
@@ -19,7 +18,7 @@ import static org.apache.flink.types.Row.withNames;
  * <p>
  * 每分钟各品牌支付额最高的topn商品  -- 实时看板
  **/
-public class Job6_TopnProductPerBrandMinute {
+public class Job6_TopnProductPerBrandMinute_SQL_ProcessTime {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
