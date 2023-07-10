@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>cn.doitedu</groupId>
-        <artifactId>doit38_realtime_project</artifactId>
+        <artifactId>doit3839_realtime_project</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
 

@@ -29,8 +29,8 @@ import org.apache.kafka.clients.consumer.OffsetResetStrategy;
  * @Desc: 学大数据，上多易教育
  * 实时监控app上的所有用户的所有行为
  * 相较 demo2的变化： 支持动态实时画像统计
- * 规则 1： 当 画像标签 age>30 and age<40 AND gender=male[静态画像条件]，在规则上线后，如果该用户发生了 3次w行为后[实时统计画像标签条件] ，在发生 u 行为[触发条件]，立刻推出消息
- * 规则 2： 当 画像标签 active_level=2  AND gender=male[静态画像条件] 在规则上线后，用户发生过：k, b ,c [实时统计画像标签条件]，当天发生 m行为[触发条件]，推送消息
+ * 规则 1： 当 画像标签 age>30 and age<40 AND gender=male[静态画像条件]，在规则上线后，如果该用户发生了 3次 w行为后[实时统计画像标签条件] ，在发生 u 行为[触发条件]，立刻推出消息
+ * 规则 2： 当 画像标签 active_level=2  AND gender=male[静态画像条件] 在规则上线后，用户依次发生过：(k, b ,c) [实时统计画像标签条件]，当发生 m行为[触发条件]，推送消息
  **/
 public class Demo3 {
     public static void main(String[] args) throws Exception {
@@ -78,9 +78,9 @@ public class Demo3 {
                         table = connection.getTable(TableName.valueOf("user_profile"));
 
 
-                        wCntState = getRuntimeContext().getState(new ValueStateDescriptor<Integer>("w_cnt", Integer.class));
+                        wCntState = getRuntimeContext().getState(new ValueStateDescriptor<Integer>("r1_cnt", Integer.class));
 
-                        rule2State = getRuntimeContext().getState(new ValueStateDescriptor<Integer>("w_cnt", Integer.class));
+                        rule2State = getRuntimeContext().getState(new ValueStateDescriptor<Integer>("r2_cnt", Integer.class));
 
                     }
 
@@ -125,14 +125,16 @@ public class Demo3 {
                                     collector.collect(message.toJSONString());
                                 }
                             }
+
+
                         }
 
 
                         /**
                          * 规则 2 :
                          * 静态画像条件： active_level=2  AND gender=male
-                         * 动态画像条件： 规则上线后，依次发生过：[k, b ,c]
-                         * 触发条件： 发生 m 行为
+                         * 动态画像条件： 规则上线后，依次发生过：[k, b ,c]行为序列
+                         * 触发条件： 发生 m 行为(  eventId=c,properties[p1]=v1 )
                          */
 
                         // 动态画像统计逻辑
@@ -151,6 +153,7 @@ public class Demo3 {
                         ) {
                             // 进而判断动态画像条件是否满足
                             if (rule2State.value() != null && rule2State.value() >= 3) {
+
                                 // 进而判断用户的静态画像条件是否满足
                                 Get get = new Get(Bytes.toBytes(userId));
                                 get.addColumn("f".getBytes(), "active_level".getBytes());

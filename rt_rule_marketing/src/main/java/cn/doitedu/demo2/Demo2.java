@@ -25,11 +25,10 @@ import org.apache.kafka.clients.consumer.OffsetResetStrategy;
  * @QQ: 657270652
  * @Date: 2023/6/13
  * @Desc: 学大数据，上多易教育
- *   实时监控app上的所有用户的所有行为
- *   相较demo1的变化： 规则中，对目标受众，添加了画像约束
- *   规则 1： 当 画像标签 age>30 and age<40 AND gender=male  用户发生了 X 行为，立刻推出消息
- *   规则 2： 当 画像标签 active_level=3  AND gender=female 用户发生了 c 行为，且行为属性中符合  properties[p1] = v1
- *
+ * 实时监控app上的所有用户的所有行为
+ * 相较demo1的变化： 规则中，对目标受众，添加了画像约束
+ * 规则 1： 当 画像标签 age>=30 and age<=40 AND gender=male  用户发生了 x 行为，立刻推出消息
+ * 规则 2： 当 画像标签 active_level=3  AND gender=female 用户发生了 c 行为，且行为属性中符合  properties[p1] = v1
  **/
 public class Demo2 {
     public static void main(String[] args) throws Exception {
@@ -54,83 +53,89 @@ public class Demo2 {
         SingleOutputStreamOperator<UserEvent> beanStream = ds.map(json -> JSON.parseObject(json, UserEvent.class));
 
         // 规则是否满足的判断核心逻辑
-        SingleOutputStreamOperator<String> messages = beanStream.keyBy(UserEvent::getUser_id)
-                .process(new KeyedProcessFunction<Long, UserEvent, String>() {
-                    JSONObject message;
-                    Connection connection;
-                    Table table;
+        SingleOutputStreamOperator<String> messages =
+                beanStream
+                        .keyBy(UserEvent::getUser_id)
+                        .process(new KeyedProcessFunction<Long, UserEvent, String>() {
+                            JSONObject message;
+                            Connection connection;
+                            Table table;
 
-                    @Override
-                    public void open(Configuration parameters) throws Exception {
-                        message = new JSONObject();
+                            @Override
+                            public void open(Configuration parameters) throws Exception {
+                                message = new JSONObject();
 
-                        org.apache.hadoop.conf.Configuration config = HBaseConfiguration.create();
-                        config.set("hbase.zookeeper.quorum","doitedu:2181");
+                                org.apache.hadoop.conf.Configuration config = HBaseConfiguration.create();
+                                config.set("hbase.zookeeper.quorum", "doitedu:2181");
+                                connection = ConnectionFactory.createConnection(config);
+                                table = connection.getTable(TableName.valueOf("user_profile"));
 
-                        connection = ConnectionFactory.createConnection(config);
-                        table = connection.getTable(TableName.valueOf("user_profile"));
 
-                    }
 
-                    @Override
-                    public void processElement(UserEvent userEvent, KeyedProcessFunction<Long, UserEvent, String>.Context context, Collector<String> collector) throws Exception {
-
-                        long userId = userEvent.getUser_id();
-
-                        // 规则1:  画像标签 age=30 AND gender=male  用户发生了 x 行为，立刻推出消息
-                        if (userEvent.getEvent_id().equals("x")) {
-
-                            // 进而判断该受众是否满足规则中的画像约束
-                            Get get = new Get(Bytes.toBytes(userId));
-                            get.addColumn("f".getBytes(),"age".getBytes());
-                            get.addColumn("f".getBytes(),"gender".getBytes());
-
-                            Result result = table.get(get);
-                            byte[] ageBytes = result.getValue("f".getBytes(), "age".getBytes());
-                            int age = Bytes.toInt(ageBytes);
-
-                            byte[] genderBytes = result.getValue("f".getBytes(), "gender".getBytes());
-                            String gender = Bytes.toString(genderBytes);
-
-                            if(age == 30 && "male".equals(gender)){
-                                message.put("user_id", userId);
-                                message.put("match_time", userEvent.getEvent_time());
-                                message.put("rule_id", "rule-001");
-
-                                collector.collect(message.toJSONString());
                             }
 
-                        }
+                            @Override
+                            public void processElement(UserEvent userEvent, KeyedProcessFunction<Long, UserEvent, String>.Context context, Collector<String> collector) throws Exception {
+
+                                long userId = userEvent.getUser_id();
+
+                                // 规则1:  画像标签 age=30 AND gender=male  用户发生了 x 行为，立刻推出消息
+                                if (userEvent.getEvent_id().equals("x")) {
+
+                                    // 进而判断该受众是否满足规则中的画像约束
+                                    Get get = new Get(Bytes.toBytes(userId));
+                                    get.addColumn("f".getBytes(), "age".getBytes());
+                                    get.addColumn("f".getBytes(), "gender".getBytes());
+
+                                    Result result = table.get(get);
+                                    byte[] ageBytes = result.getValue("f".getBytes(), "age".getBytes());
+                                    String ageStr = Bytes.toString(ageBytes);
+                                    int age = Integer.parseInt(ageStr);
+
+                                    byte[] genderBytes = result.getValue("f".getBytes(), "gender".getBytes());
+                                    String gender = Bytes.toString(genderBytes);
+
+                                    if (age >= 30 && age <=40   && "male".equals(gender)) {
+                                        message.put("user_id", userId);
+                                        message.put("match_time", userEvent.getEvent_time());
+                                        message.put("rule_id", "rule-001");
+
+                                        collector.collect(message.toJSONString());
+                                    }
+
+                                }
 
 
-                        // 规则2 :画像标签 active_level=3  AND gender=female 用户发生了 c 行为，且行为属性中符合  properties[p1] = v1
-                        if (userEvent.getEvent_id().equals("c")
-                        && userEvent.getProperties().getOrDefault("p1","").equals("v1")
-                        ) {
+                                // 规则2 :画像标签 active_level=3  AND gender=female 用户发生了 c 行为，且行为属性中符合  properties[p1] = v1
+                                if (userEvent.getEvent_id().equals("c")
+                                        && userEvent.getProperties().getOrDefault("p1", "").equals("v1")
+                                ) {
 
-                            // 查询该用户的画像标签是否满足规则的要求
-                            Get get = new Get(Bytes.toBytes(userId));
-                            get.addColumn("f".getBytes(),"active_level".getBytes());
-                            get.addColumn("f".getBytes(),"gender".getBytes());
+                                    // 查询该用户的画像标签是否满足规则的要求
+                                    Get get = new Get(Bytes.toBytes(userId));
+                                    get.addColumn("f".getBytes(), "active_level".getBytes());
+                                    get.addColumn("f".getBytes(), "gender".getBytes());
 
-                            Result result = table.get(get);
-                            byte[] activeBytes = result.getValue("f".getBytes(), "active_level".getBytes());
-                            int activeLevel = Bytes.toInt(activeBytes);
+                                    Result result = table.get(get);
+                                    byte[] activeBytes = result.getValue("f".getBytes(), "active_level".getBytes());
+                                    String activeLevelStr = Bytes.toString(activeBytes);
+                                    int activeLevel = Integer.parseInt(activeLevelStr);
 
-                            byte[] genderBytes = result.getValue("f".getBytes(), "gender".getBytes());
-                            String gender = Bytes.toString(genderBytes);
 
-                            if(activeLevel ==  3 && "male".equals(gender)){
-                                message.put("user_id", context.getCurrentKey());
-                                message.put("match_time", userEvent.getEvent_time());
-                                message.put("rule_id", "rule-002");
+                                    byte[] genderBytes = result.getValue("f".getBytes(), "gender".getBytes());
+                                    String gender = Bytes.toString(genderBytes);
 
-                                collector.collect(message.toJSONString());
+                                    if (activeLevel == 3 && "male".equals(gender)) {
+                                        message.put("user_id", context.getCurrentKey());
+                                        message.put("match_time", userEvent.getEvent_time());
+                                        message.put("rule_id", "rule-002");
+
+                                        collector.collect(message.toJSONString());
+                                    }
+
+                                }
                             }
-
-                        }
-                    }
-                });
+                        });
 
         messages.print();
 

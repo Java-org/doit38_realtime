@@ -74,20 +74,20 @@ public class Job6_TopnProductPerBrandMinute_SQL_ProcessTime {
         tenv.executeSql(
 
                 " CREATE TEMPORARY VIEW joined AS                                                                    "+
-                        " WITH o AS (                                                                                        "+
-                        " SELECT                                                                                             "+
-                        " *                                                                                                  "+
-                        " FROM order_mysql                                                                                   "+
-                        " WHERE status in (1,2,3) AND DATE_FORMAT(payment_time,'yyyy-MM-dd') = CURRENT_DATE                  "+
-                        " )                                                                                                  "+
-                        "                                                                                                    "+
-                        " SELECT                                                                                             "+
-                        " o.*,                                                                                               "+
-                        " i.*,                                                                                               "+
-                        " proctime() as pt                                                                                   "+
-                        " FROM o                                                                                             "+
-                        " JOIN item_mysql i                                                                                  "+
-                        " ON o.id = i.oid                                                                                    "
+                        " WITH o AS (                                                                                   "+
+                        " SELECT                                                                                        "+
+                        " *                                                                                             "+
+                        " FROM order_mysql                                                                              "+
+                        " WHERE status in (1,2,3) AND DATE_FORMAT(payment_time,'yyyy-MM-dd') = CURRENT_DATE             "+
+                        " )                                                                                             "+
+                        "                                                                                               "+
+                        " SELECT                                                                                        "+
+                        " o.*,                                                                                          "+
+                        " i.*,                                                                                          "+
+                        " proctime() as pt                                                                              "+
+                        " FROM o                                                                                        "+
+                        " JOIN item_mysql i                                                                             "+
+                        " ON o.id = i.oid                                                                               "
                 );
 
         // ------------------------------------------------------------------------------------
@@ -128,7 +128,7 @@ public class Job6_TopnProductPerBrandMinute_SQL_ProcessTime {
             return "+I".equals(row.getKind().shortString()) || "+U".equals(row.getKind().shortString());
         });
         // 将保留了  +I  +U 变化语义行 的 数据流，重新转回表
-        // tenv.createTemporaryView("tmp", filteredRows);  // 只支持append-only(+I) 语义
+        // tenv.createTemporaryView("tmp", filteredRows);  // 只支持 append-only(+I) 语义
         tenv.createTemporaryView("filtered",tenv.fromChangelogStream(filteredRows));
 
         // ---------------------------------------------------------------------------------
