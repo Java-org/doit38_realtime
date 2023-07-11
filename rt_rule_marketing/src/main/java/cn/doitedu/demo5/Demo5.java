@@ -13,7 +13,6 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 
 import java.util.HashMap;
 
@@ -33,7 +32,7 @@ public class Demo5 {
                 .setTopics("dwd_events")
                 .setBootstrapServers("doitedu:9092")
                 .setValueOnlyDeserializer(new SimpleStringSchema())
-                .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.LATEST))
+                .setStartingOffsets(OffsetsInitializer.latest())
                 .build();
 
 
