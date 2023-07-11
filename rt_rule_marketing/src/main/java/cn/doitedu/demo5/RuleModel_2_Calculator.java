@@ -1,7 +1,9 @@
 package cn.doitedu.demo5;
 
+import cn.doitedu.demo5.beans.Model2OfflineProfileCondition;
+import cn.doitedu.demo5.beans.Model2Param;
+import cn.doitedu.demo5.beans.UserEvent;
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ValueState;

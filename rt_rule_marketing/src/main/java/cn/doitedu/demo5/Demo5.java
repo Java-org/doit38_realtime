@@ -1,5 +1,6 @@
 package cn.doitedu.demo5;
 
+import cn.doitedu.demo5.beans.UserEvent;
 import com.alibaba.fastjson.JSON;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
@@ -21,7 +22,10 @@ public class Demo5 {
     public static void main(String[] args) throws Exception {
 
         // 构建flink环境
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        Configuration conf = new Configuration();
+        conf.setString("taskmanager.memory.network.min","128 M");
+        conf.setString("taskmanager.memory.network.max","128 M");
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(conf);
         env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt");
 

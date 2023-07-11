@@ -1,4 +1,4 @@
-import cn.doitedu.demo5.Model2Param;
+import cn.doitedu.demo5.beans.Model2Param;
 import com.alibaba.fastjson.JSON;
 
 public class TestJsonParse {

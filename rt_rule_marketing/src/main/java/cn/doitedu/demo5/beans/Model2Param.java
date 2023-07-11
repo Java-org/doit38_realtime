@@ -1,4 +1,4 @@
-package cn.doitedu.demo5;
+package cn.doitedu.demo5.beans;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

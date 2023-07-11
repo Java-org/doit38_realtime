@@ -1,6 +1,7 @@
 package cn.doitedu.demo6;
 
 
+import cn.doitedu.demo6.beans.UserEvent;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.util.Collector;
 

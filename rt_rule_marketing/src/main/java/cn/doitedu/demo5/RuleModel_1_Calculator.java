@@ -1,5 +1,6 @@
 package cn.doitedu.demo5;
 
+import cn.doitedu.demo5.beans.UserEvent;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;

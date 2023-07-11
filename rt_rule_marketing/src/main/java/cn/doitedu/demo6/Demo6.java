@@ -1,5 +1,7 @@
 package cn.doitedu.demo6;
 
+import cn.doitedu.demo6.beans.RuleMetaBean;
+import cn.doitedu.demo6.beans.UserEvent;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
