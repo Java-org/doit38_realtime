@@ -40,7 +40,7 @@ public class Demo2 {
 
         KafkaSource<String> source = KafkaSource.<String>builder()
                 .setBootstrapServers("doitedu:9092")
-                .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.LATEST))
+                .setStartingOffsets(OffsetsInitializer.latest())
                 .setGroupId("doitedu-gxx")
                 .setTopics("dwd_events")
                 .setValueOnlyDeserializer(new SimpleStringSchema())

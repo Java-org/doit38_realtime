@@ -1,6 +1,6 @@
-package cn.doitedu.demo5;
+package cn.doitedu.demo6_doit39;
 
-import cn.doitedu.demo5.beans.UserEvent;
+import cn.doitedu.demo6_doit39.beans.UserEvent;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
@@ -30,7 +30,7 @@ public class RuleModel_1_Calculator implements RuleCalculator {
     @Override
     public void init(String ruleParamJson, RuntimeContext runtimeContext) throws IOException {
 
-        org.apache.hadoop.conf.Configuration configuration = HBaseConfiguration.create();
+        Configuration configuration = HBaseConfiguration.create();
         configuration.set("hbase.zookeeper.quorum", "doitedu:2181");
         Connection connection = ConnectionFactory.createConnection(configuration);
         table = connection.getTable(TableName.valueOf("user_profile"));

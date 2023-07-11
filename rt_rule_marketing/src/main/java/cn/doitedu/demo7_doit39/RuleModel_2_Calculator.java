@@ -1,8 +1,8 @@
-package cn.doitedu.demo5;
+package cn.doitedu.demo7_doit39;
 
-import cn.doitedu.demo5.beans.Model2OfflineProfileCondition;
-import cn.doitedu.demo5.beans.Model2Param;
-import cn.doitedu.demo5.beans.UserEvent;
+import cn.doitedu.demo6_doit39.beans.Model2OfflineProfileCondition;
+import cn.doitedu.demo6_doit39.beans.Model2Param;
+import cn.doitedu.demo7_doit39.beans.UserEvent;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.flink.api.common.functions.RuntimeContext;
@@ -17,7 +17,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
 
-public class RuleModel_2_Calculator implements RuleCalculator{
+public class RuleModel_2_Calculator implements RuleCalculator {
 
     Table table ;
 
@@ -31,7 +31,7 @@ public class RuleModel_2_Calculator implements RuleCalculator{
     public void init(String ruleParamJson, RuntimeContext runtimeContext) throws IOException {
 
         // 获取一个查询离线画像条件的hbase连接
-        org.apache.hadoop.conf.Configuration configuration = HBaseConfiguration.create();
+        Configuration configuration = HBaseConfiguration.create();
         configuration.set("hbase.zookeeper.quorum", "doitedu:2181");
         Connection connection = ConnectionFactory.createConnection(configuration);
         table = connection.getTable(TableName.valueOf("user_profile"));

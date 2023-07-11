@@ -74,7 +74,6 @@ public class RuleModel1ModelCalculator implements RuleModelCalculator {
         // 申明状态  [ 条件id, 统计值 ]
         state = runtimeContext.getMapState(new MapStateDescriptor<Integer, Integer>("state", Integer.class, Integer.class));
 
-
         // 创建一个用于查询静态画像条件的  hbase 连接
         org.apache.hadoop.conf.Configuration config = HBaseConfiguration.create();
         config.set("hbase.zookeeper.quorum", "doitedu:2181");

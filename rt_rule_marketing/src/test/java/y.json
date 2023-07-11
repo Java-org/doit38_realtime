@@ -1,0 +1,25 @@
+{
+  "rule_id":"rule-3",
+
+  "offline_profile":[
+    {
+      "tag_name":"age",
+      "compare_type":"<",
+      "tag_value":[30]
+    },
+    {
+      "tag_name":"gender",
+      "compare_type":"=",
+      "tag_value":["female"]
+    }
+  ],
+  "online_profile":{
+    "event_id":"share",
+    "event_count":2
+  },
+  "fire_event":{
+    "event_id":"w",
+    "pro_name":"p1",
+    "pro_value":"v1"
+  }
+}

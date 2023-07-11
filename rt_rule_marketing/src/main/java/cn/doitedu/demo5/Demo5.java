@@ -14,6 +14,11 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.Table;
 
 import java.util.HashMap;
 
@@ -59,16 +64,35 @@ public class Demo5 {
             @Override
             public void open(Configuration parameters) throws Exception {
 
-                // 构造规则运算机
-                RuleCalculator rule1_1 = new RuleModel_1_Calculator();
+                // 获取一个查询离线画像条件的hbase连接
+                org.apache.hadoop.conf.Configuration configuration = HBaseConfiguration.create();
+                configuration.set("hbase.zookeeper.quorum", "doitedu:2181");
+                Connection connection = ConnectionFactory.createConnection(configuration);
+                Table tablex = connection.getTable(TableName.valueOf("user_profile"));
 
-                // 初始化运算机
+                org.apache.hadoop.conf.Configuration configuration2 = HBaseConfiguration.create();
+                configuration2.set("hbase.zookeeper.quorum", "doitedu:2181");
+                Connection connection2 = ConnectionFactory.createConnection(configuration2);
+                Table tabley = connection2.getTable(TableName.valueOf("user_profile"));
+
+
+                // 构造模型1的规则1的运算机
+                RuleCalculator rule_1_1 = new RuleModel_1_Calculator();
                 String rule_1_1ParamJson = "{\"rule_id\":\"rule_1_1\",\"offline_profile\":[{\t\t\"tag_name\":\"age\",\t\t\"compare_type\":\"between\",\t\t\"tag_value\":[20,30]\t},\t{\t\t\"tag_name\":\"gender\",\t\t\"compare_type\":\"=\",\t\t\"tag_value\":[\"male\"]\t}],\"online_profile\":{\t\"event_id\":\"add_cart\",\t\"event_count\":3},\"fire_event\":{\t\"event_id\":\"x\",\t\"pro_name\":\"p1\",\t\"pro_value\":\"v1\"}}";
-                rule1_1.init(rule_1_1ParamJson,getRuntimeContext());
+                rule_1_1.init(rule_1_1ParamJson,getRuntimeContext());
+                calculatorPool.put("rule_1_1",rule_1_1);
 
-                // 放入运算机池
-                calculatorPool.put("rule_1_1",rule1_1);
+                // 构造模型1的规则2的运算机
+                /*RuleCalculator rule_1_2 = new RuleModel_1_Calculator();
+                String rule_1_2ParamJson = "{\"rule_id\":\"rule_1_2\",\"offline_profile\":[{\t\t\"tag_name\":\"age\",\t\t\"compare_type\":\">\",\t\t\"tag_value\":[25]\t},\t{\t\t\"tag_name\":\"gender\",\t\t\"compare_type\":\"=\",\t\t\"tag_value\":[\"female\"]\t}],\"online_profile\":{\t\"event_id\":\"item_share\",\t\"event_count\":2},\"fire_event\":{\t\"event_id\":\"add_cart\",\t\"pro_name\":\"item_id\",\t\"pro_value\":\"p0008\"}}";
+                rule_1_2.init(rule_1_2ParamJson,getRuntimeContext());
+                calculatorPool.put("rule_1_2",rule_1_2);*/
 
+                /*RuleModel_2_Calculator rule_2_1 = new RuleModel_2_Calculator();
+                String rule_2_1ParamJson = "{\"rule_id\":\"rule_2_1\",\"offline_profile\":[{\"tag_name\":\"active_level\",\"compare_type\":\"=\",\"tag_value\":[2]},{\"tag_name\":\"gender\",\"compare_type\":\"=\",\"tag_value\":[\"male\"]}],\"online_profile\":{\"event_seq\":[\"k\",\"b\",\"c\"],\"seq_count\":3},\"fire_event\":{\"event_id\":\"share\",\"pro_name\":\"share_method\",\"pro_value\":\"qq\"}}";
+                rule_2_1.init(rule_2_1ParamJson,getRuntimeContext());
+                calculatorPool.put("rule_2_1",rule_2_1);
+*/
             }
 
             @Override

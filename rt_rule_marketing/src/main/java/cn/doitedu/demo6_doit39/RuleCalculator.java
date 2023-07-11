@@ -1,10 +1,9 @@
-package cn.doitedu.demo5;
+package cn.doitedu.demo6_doit39;
 
 
-import cn.doitedu.demo5.beans.UserEvent;
+import cn.doitedu.demo6_doit39.beans.UserEvent;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.util.Collector;
-import org.apache.hadoop.hbase.client.Table;
 
 import java.io.IOException;
 

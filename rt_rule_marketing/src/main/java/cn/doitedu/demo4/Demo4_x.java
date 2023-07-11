@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Demo4_x {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt");
@@ -73,6 +73,7 @@ public class Demo4_x {
                 })
                 .print();
 
+        env.execute();
 
     }
 }
