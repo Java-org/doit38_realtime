@@ -19,7 +19,7 @@ import java.util.HashMap;
 
 public class Demo5 {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
 
         // 构建flink环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -57,10 +57,14 @@ public class Demo5 {
             public void open(Configuration parameters) throws Exception {
 
                 // 构造规则运算机
+                RuleCalculator rule1_1 = new RuleModel_1_Calculator();
 
                 // 初始化运算机
+                String rule_1_1ParamJson = "{\"rule_id\":\"rule_1_1\",\"offline_profile\":[{\t\t\"tag_name\":\"age\",\t\t\"compare_type\":\"between\",\t\t\"tag_value\":[20,30]\t},\t{\t\t\"tag_name\":\"gender\",\t\t\"compare_type\":\"=\",\t\t\"tag_value\":[\"male\"]\t}],\"online_profile\":{\t\"event_id\":\"add_cart\",\t\"event_count\":3},\"fire_event\":{\t\"event_id\":\"x\",\t\"pro_name\":\"p1\",\t\"pro_value\":\"v1\"}}";
+                rule1_1.init(rule_1_1ParamJson,getRuntimeContext());
 
                 // 放入运算机池
+                calculatorPool.put("rule_1_1",rule1_1);
 
             }
 
@@ -78,6 +82,8 @@ public class Demo5 {
         //
         result.print();
 
+
+        env.execute();
 
     }
 }
