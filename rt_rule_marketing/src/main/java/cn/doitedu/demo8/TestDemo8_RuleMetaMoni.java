@@ -1,4 +1,4 @@
-package cn.doitedu.demo7;
+package cn.doitedu.demo8;
 
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
@@ -18,7 +18,7 @@ import java.sql.PreparedStatement;
  *   人工模拟，带预圈选人群的 规则定义
  *
  **/
-public class TestDemo6_RuleMetaMoni {
+public class TestDemo8_RuleMetaMoni {
 
     public static void main(String[] args) throws Exception {
 

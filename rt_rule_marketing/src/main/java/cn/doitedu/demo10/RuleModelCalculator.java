@@ -1,8 +1,9 @@
-package cn.doitedu.demo6;
+package cn.doitedu.demo10;
 
 
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.util.Collector;
+import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 import java.io.IOException;
 
@@ -11,7 +12,7 @@ public interface RuleModelCalculator {
     /**
      * 规则运算机的 初始化入口
      */
-    void init(String ruleParamJson, RuntimeContext runtimeContext) throws IOException;
+    void init(String ruleParamJson, RuntimeContext runtimeContext , Roaring64Bitmap crowdBitmap) throws IOException;
 
 
     /* *

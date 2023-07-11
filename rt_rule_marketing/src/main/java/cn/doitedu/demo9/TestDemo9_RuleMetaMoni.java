@@ -7,7 +7,10 @@ import redis.clients.jedis.Jedis;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 
 /**
  * @Author: 深似海
@@ -25,68 +28,56 @@ public class TestDemo9_RuleMetaMoni {
     public  void model1Rule() throws SQLException, IOException {
 
         String paramJson1 = "{\n" +
-                "  \"rule_id\": \"rule-001-002\",\n" +
+                "  \"rule_id\": \"rule-001\",\n" +
                 "  \"static_profile\": [\n" +
                 "    {\n" +
                 "      \"tag_name\": \"age\",\n" +
                 "      \"compare_op\": \">\",\n" +
-                "      \"compare_value\": 20\n" +
+                "      \"compare_value\": 30\n" +
                 "    },\n" +
                 "    {\n" +
                 "      \"tag_name\": \"gender\",\n" +
                 "      \"compare_op\": \"=\",\n" +
-                "      \"compare_value\": \"female\"\n" +
+                "      \"compare_value\": \"male\"\n" +
                 "    }\n" +
                 "  ],\n" +
                 "  \"dynamic_profile\": [\n" +
                 "    {\n" +
                 "      \"flag_id\": 1,\n" +
-                "      \"event_id\": \"k\",\n" +
-                "      \"event_cnt\": 4\n" +
+                "      \"event_id\": \"w\",\n" +
+                "      \"event_cnt\": 3\n" +
                 "    }\n" +
                 "  ],\n" +
                 "  \"fire_event\": {\n" +
-                "    \"event_id\": \"m\",\n" +
+                "    \"event_id\": \"x\",\n" +
                 "    \"properties\": [\n" +
                 "      {\n" +
                 "        \"property_name\": \"p1\",\n" +
                 "        \"compare_op\": \"=\",\n" +
-                "        \"compare_value\": \"v2\"\n" +
+                "        \"compare_value\": \"v1\"\n" +
                 "      }\n" +
                 "    ]\n" +
                 "  }\n" +
                 "}\n";
         Connection connection = DriverManager.getConnection("jdbc:mysql://doitedu:3306/doit38", "root", "root");
 
-        /**
-         * 根据规则参数中所指定的模型id，去模型表中找到运算机源码
-         */
-        PreparedStatement queryPst = connection.prepareStatement("select calculator_code from model_meta where model_id = ?");
-        queryPst.setString(1,"model-001");
-        ResultSet resultSet = queryPst.executeQuery();
-        resultSet.next();
-        String calculatorCode = resultSet.getString("calculator_code");
-
-
-        PreparedStatement pst = connection.prepareStatement("insert into rule_meta values(?,?,?,?,?,?,?)");
-        pst.setString(1,"rule-001-002");
+        PreparedStatement pst = connection.prepareStatement("insert into rule_meta values(?,?,?,?,?,?)");
+        pst.setString(1,"rule-001");
         pst.setString(2,"model-001");
         pst.setString(3,paramJson1);
         pst.setInt(4,2);
 
         // 预圈选人群
-        Roaring64Bitmap crowdBitmap = Roaring64Bitmap.bitmapOf(2, 4, 6, 8, 10);
+        Roaring64Bitmap crowdBitmap = Roaring64Bitmap.bitmapOf(1, 3, 5, 7, 9);
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         crowdBitmap.serialize(new DataOutputStream(bout));
 
         byte[] crowdBitmapBytes = bout.toByteArray();
         pst.setBytes(5,crowdBitmapBytes);
 
+
         // 历史值截止点
         pst.setLong(6,Long.MIN_VALUE);
-
-        // 设置模型的运算机代码
-        pst.setString(7,calculatorCode);
 
         // 执行insert语句
         pst.execute();
@@ -134,7 +125,7 @@ public class TestDemo9_RuleMetaMoni {
     public  void model3Rule() throws SQLException, IOException {
 
         String paramJson1 = "{\n" +
-                "  \"rule_id\": \"rule-003-001\",\n" +
+                "  \"rule_id\": \"rule-003\",\n" +
                 "  \"dynamic_profile\": [\n" +
                 "    {\n" +
                 "      \"flag_id\": 1,\n" +
@@ -150,24 +141,11 @@ public class TestDemo9_RuleMetaMoni {
                 "}";
         Connection connection = DriverManager.getConnection("jdbc:mysql://doitedu:3306/doit38", "root", "root");
 
-        PreparedStatement pst = connection.prepareStatement("insert into rule_meta values(?,?,?,?,?,?,?)");
-        pst.setString(1,"rule-003-001");
+        PreparedStatement pst = connection.prepareStatement("insert into rule_meta values(?,?,?,?,?,?)");
+        pst.setString(1,"rule-003");
         pst.setString(2,"model-003");
         pst.setString(3,paramJson1);
         pst.setInt(4,2);
-
-        /**
-         * 根据规则参数中所指定的模型id，去模型表中找到运算机源码
-         */
-        PreparedStatement queryPst = connection.prepareStatement("select calculator_code from model_meta where model_id = ?");
-        queryPst.setString(1,"model-003");
-        ResultSet resultSet = queryPst.executeQuery();
-        resultSet.next();
-        String calculatorCode = resultSet.getString("calculator_code");
-
-        pst.setString(7,calculatorCode);
-
-
 
         // 预圈选人群 -- 其实本规则不需要
         Roaring64Bitmap crowdBitmap = Roaring64Bitmap.bitmapOf();
@@ -194,9 +172,9 @@ public class TestDemo9_RuleMetaMoni {
         // 5 -> 发生了6次
 
         Jedis jedis = new Jedis("doitedu", 6379);
-        jedis.hset("rule-003-001|1","1","2");
-        jedis.hset("rule-003-001|1","3","1");
-        jedis.hset("rule-003-001|1","5","6");
+        jedis.hset("rule-003|1","1","2");
+        jedis.hset("rule-003|1","3","1");
+        jedis.hset("rule-003|1","5","6");
         jedis.close();
 
 

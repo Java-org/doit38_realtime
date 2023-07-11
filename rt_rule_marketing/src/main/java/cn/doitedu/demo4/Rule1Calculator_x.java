@@ -17,8 +17,16 @@ import java.io.IOException;
 /**
  * 规则 1 :
  * 静态画像条件： 画像标签 age=30 AND gender=male
- * 实时动态画像标签条件： 在规则上线后，该用户发生 3次 w 行为
+ * 实时动态画像标签条件：在规则上线后，该用户发生 3次 add_cart 行为
  * 规则触发条件： 发生x行为
+ *
+ *
+ * rule-2
+ * 静态画像条件： 画像标签 job=程序员 AND age:[20,30] and 月活跃天数 > 20
+ * 实时动态画像标签条件：在规则上线后，该用户发生 2次 点赞 行为
+ * 规则触发条件： 发生 分享 行为 且分享的方式为 qq空间
+ *
+ *
  */
 public class Rule1Calculator_x implements RuleCalculator{
     ValueState<Integer> wCntState;

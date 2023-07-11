@@ -1,4 +1,4 @@
-package cn.doitedu.demo9;
+package cn.doitedu.demo10;
 
 
 import lombok.AllArgsConstructor;
@@ -17,10 +17,15 @@ public class RuleMetaBean {
     private String ruleModelId;
     private String ruleParamJson;
     private int onlineStatus;
+
     // demo6新增的字段  : 预圈选人群
     private Roaring64Bitmap preSelectedCrowd;
-    // 跨时段的动态画像条件 历史值统计截止时间点
+
+    // demo8: 跨时段的动态画像条件 历史值统计截止时间点
     private Long dynamicProfileHistoryQueryEndTime;
+
+    // demo9: 新增规则元数据携带的  运算机类源码
+    private String calculatorGroovyCode;
 
 
 }

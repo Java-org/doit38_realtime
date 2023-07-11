@@ -1,0 +1,31 @@
+{
+
+  "rule_id":"rule_02",
+
+  "offline_profile":[
+    {
+      "tag_name":"job",
+      "compare_type":"=",
+      "tag_value":["程序员"]
+    },
+    {
+      "tag_name":"age",
+      "compare_type":"between",
+      "tag_value":[20,30]
+    },
+    {
+      "tag_name":"active_days_m",
+      "compare_type":">",
+      "tag_value":[20]
+    }
+  ],
+  "online_profile":{
+    "event_id":"dianzan",
+    "event_count":2
+  },
+  "fire_event":{
+    "event_id":"share",
+    "pro_name":"share_method",
+    "pro_value":"qq"
+  }
+}

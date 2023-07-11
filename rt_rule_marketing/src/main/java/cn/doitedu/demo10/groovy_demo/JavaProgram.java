@@ -1,4 +1,4 @@
-package cn.doitedu.demo9.groovy_demo;
+package cn.doitedu.demo10.groovy_demo;
 
 import groovy.lang.GroovyClassLoader;
 

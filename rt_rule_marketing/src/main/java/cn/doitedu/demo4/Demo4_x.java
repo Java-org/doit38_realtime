@@ -43,6 +43,7 @@ public class Demo4_x {
 
                     @Override
                     public void open(Configuration parameters) throws Exception {
+
                         // 构造规则1的运算机
                         Rule1Calculator_x rule1CalculatorX = new Rule1Calculator_x();
                         // 初始化规则1的运算机

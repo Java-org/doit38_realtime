@@ -6,7 +6,7 @@ import org.apache.flink.util.Collector;
 
 import java.io.IOException;
 
-public interface RuleModelCalculator {
+public interface RuleCalculator {
 
     /**
      * 规则运算机的 初始化入口

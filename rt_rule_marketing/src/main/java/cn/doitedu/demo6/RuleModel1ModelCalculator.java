@@ -11,7 +11,6 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 import java.io.IOException;
 
@@ -64,11 +63,8 @@ public class RuleModel1ModelCalculator implements RuleModelCalculator {
 
     JSONObject message;
 
-
-    Roaring64Bitmap preSelectCrowd;
-
     @Override
-    public void init(String ruleParamJson, RuntimeContext runtimeContext , Roaring64Bitmap preSelectCrowd) throws IOException {
+    public void init(String ruleParamJson, RuntimeContext runtimeContext) throws IOException {
         //String ruleParam = "{\"ruleId\":\"rule-001\",\"static_profile\":[{\"tag_name\":\"age\",\"compare_op\":\"in\",\"compare_value\":[30,40]},{\"tag_name\":\"gender\",\"compare_op\":\"=\",\"compare_value\":[\"male\"]}],\"dynamic_profile\":[{\"event_id\":\"w\",\"event_cnt\":3}],\"fire_event\":{\"event_id\":\"x\",\"properties\":[{\"property_name\":\"p1\",\"compare_op\":\"=\",\"compare_value\":\"v1\"}]}}\n";
 
         // 解析参数
@@ -89,28 +85,20 @@ public class RuleModel1ModelCalculator implements RuleModelCalculator {
         message = new JSONObject();
         message.put("rule_id" , paramObject.getString("rule_id") );
 
-        // demo6新增：  预圈选人群
-        this.preSelectCrowd = preSelectCrowd;
-
     }
 
     @Override
     public void calculate(UserEvent userEvent , Collector<String> collector) throws Exception {
 
-        // 只有当事件行为人，属于本规则的 预圈选人群 ，才对他的行为做 动态画像统计 或  触发判断  处理
-        if(preSelectCrowd.contains(userEvent.getUser_id())) {
-            // 首先，对输入的事件，进行动态画像统计处理
-            dynamicProfileProcess(userEvent);
+        // 首先，对输入的事件，进行动态画像统计处理
+        dynamicProfileProcess(userEvent);
 
-            fireProcess(userEvent, collector);
-        }
+        fireProcess(userEvent, collector);
+
     }
 
     private void fireProcess(UserEvent userEvent, Collector<String> collector) throws Exception {
-
-        /**
-         * 1. 检查输入事件是否是规则要求的  触发行为事件
-         */
+        // 先从规则参数中，提取 触发条件的 参数
         JSONObject fireEventObject = paramObject.getJSONObject("fire_event");
         String fireEventId = fireEventObject.getString("event_id");
         JSONArray propertiesArray = fireEventObject.getJSONArray("properties");
@@ -147,14 +135,16 @@ public class RuleModel1ModelCalculator implements RuleModelCalculator {
                 if (!match) break;
             }
 
-            // 如果经过检查，输入事件不属于规则要求的触发事件，则直接返回了；
-            if(!match) return;
 
-            /**
-             * 2. 检查该用户的动态画像条件是否满足
-             */
+            // 如果经过上述的 eventId  和  properties 比较之后
+            // match 为  : true
+            // 则说明该用户事件，确实是本规则要求的触发行为
+            // 就要正式判断该用户，是否已经完全满足该规则的 动态画像条件 和    静态画像条件
+
+            // 先从规则参数中，取到动态画像条件的参数
             JSONArray dynamicProfileArray = paramObject.getJSONArray("dynamic_profile");
 
+            boolean judgeFlag = true;
             for (int i = 0; i < dynamicProfileArray.size(); i++) {
                 JSONObject profile_i = dynamicProfileArray.getJSONObject(i);
                 Integer flagId = profile_i.getInteger("flag_id");
@@ -162,9 +152,56 @@ public class RuleModel1ModelCalculator implements RuleModelCalculator {
 
                 Integer stateCntValue = state.get(flagId);
                 if (stateCntValue == null || stateCntValue < eventCnt) {
-                    match = false;
-                    return;
+                    judgeFlag = false;
+                    break;
                 }
+            }
+
+
+            // 进而判断该用户的 静态画像条件是否满足
+            JSONArray staticProfileArray = paramObject.getJSONArray("static_profile");
+
+            // 拼接hbase的get参数
+            Get get = new Get(Bytes.toBytes(userEvent.getUser_id()));
+            for (int i = 0; i < staticProfileArray.size(); i++) {
+                JSONObject staticProfile_i = staticProfileArray.getJSONObject(i);
+                String tagName = staticProfile_i.getString("tag_name");
+                get.addColumn("f".getBytes(), tagName.getBytes());
+            }
+
+            // 调用hbase客户端查询 画像标签值
+            Result result = table.get(get);
+            match = true;
+            for (int i = 0; i < staticProfileArray.size(); i++) {
+
+                JSONObject staticProfile_i = staticProfileArray.getJSONObject(i);
+                String tagName = staticProfile_i.getString("tag_name");
+                String compareOp = staticProfile_i.getString("compare_op");
+                // 条件中要求的 判断阈值
+                String compareValue = staticProfile_i.getString("compare_value");
+
+                // hbase中查出来的真实值
+                byte[] tagValueBytes = result.getValue("f".getBytes(), tagName.getBytes());
+                String tagValue = Bytes.toString(tagValueBytes);
+
+
+                // 比较两个值
+                switch (compareOp) {
+                    case "=":
+                        match = compareValue.equals(tagValue);
+                        break;
+                    case ">":
+                        match = Double.parseDouble(tagValue) > (Double.parseDouble(compareValue));
+                        break;
+                    case "<":
+                        match = Double.parseDouble(tagValue) < (Double.parseDouble(compareValue));
+                        break;
+                    default:
+                        throw new RuntimeException("带给你一个消息");
+                }
+
+                // 但凡有一个条件不满足，则跳出循环
+                if(!match) break;
             }
 
             // 上述一系列检查如果都通过了,则输出规则命中消息

@@ -21,9 +21,7 @@ import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
 
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +33,7 @@ import java.util.Set;
  * @Date: 2023/6/13
  * @Desc: 学大数据，上多易教育
  * 实时监控app上的所有用户的所有行为
- * 相较 demo5的变化： 对静态画像条件的处理，重构出 “人群预圈选”机制
+ * 相较 demo4的变化： 规则的参数，是从外部传入的；通过参数的动态注入，实现内置规则模型基础上的规则动态注入
  **/
 
 @Slf4j
@@ -43,7 +41,7 @@ public class Demo6 {
     public static void main(String[] args) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.enableCheckpointing(600000, CheckpointingMode.EXACTLY_ONCE);
+        env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt");
         env.setParallelism(1);
 
@@ -73,7 +71,6 @@ public class Demo6 {
                         "      rule_model_id STRING,   " +
                         "      rule_param_json STRING, " +
                         "      online_status INT,      " +
-                        "      pre_select_crowd BYTES,  " +
                         "     PRIMARY KEY (rule_id) NOT ENFORCED  " +
                         "     ) WITH (                            " +
                         "     'connector' = 'mysql-cdc',          " +
@@ -94,18 +91,11 @@ public class Demo6 {
                 String ruleParamJson = row.getFieldAs("rule_param_json");
                 int onlineStatus = row.getFieldAs("online_status");
 
-                // demo6新增 : 取出预圈选的人群序列化字节
-                byte[] crowdBytes = row.getFieldAs("pre_select_crowd");
-                // 反序列化成 RoaringBitmap 对象
-                Roaring64Bitmap crowdBitmap = Roaring64Bitmap.bitmapOf();
-                if(crowdBytes != null ) {
-                    crowdBitmap.deserialize(ByteBuffer.wrap(crowdBytes));
-                }
 
                 RowKind kind = row.getKind();
                 String op = kind.shortString();
 
-                return new RuleMetaBean(op, ruleId, ruleModelId, ruleParamJson, onlineStatus, crowdBitmap);
+                return new RuleMetaBean(op, ruleId, ruleModelId, ruleParamJson, onlineStatus);
             }
         });
 
@@ -131,7 +121,7 @@ public class Demo6 {
                         for (Map.Entry<String, RuleModelCalculator> entry : entries) {
                             RuleModelCalculator calculator = entry.getValue();
                             // 调用运算机，处理当前收到的用户行为
-                            calculator.calculate(userEvent, collector);
+                            calculator.calculate(userEvent,collector);
                         }
 
                     }
@@ -156,11 +146,6 @@ public class Demo6 {
                         int onlineStatus = ruleMetaBean.getOnlineStatus();
                         String op = ruleMetaBean.getOp();
 
-                        // TODO  按照模型的验证规则，对输入的规则定义信息进行校验（尤其是对参数json要进行合规校验）
-
-                        // demo6 新增： 预圈选人群
-                        Roaring64Bitmap preSelectedCrowd = ruleMetaBean.getPreSelectedCrowd();
-
                         // 如果收到的数据 是 +I ,+U ,且 online_status = 2(上线)
                         if (("+I".equals(op) || "+U".equals(op)) && onlineStatus == 2) {
                             // 根据 本次注入的 新规则，所属的模型，构造该模型的运算机对象
@@ -168,21 +153,21 @@ public class Demo6 {
                             if ("model-001".equals(ruleModelId)) {
                                 calculator = new RuleModel1ModelCalculator();
                                 // 初始化该运算机对象
-                                calculator.init(ruleParamJson, getRuntimeContext() , preSelectedCrowd);
+                                calculator.init(ruleParamJson, getRuntimeContext());
                             } else if ("model-002".equals(ruleModelId)) {
                                 calculator = new RuleModel2ModelCalculator();
                                 // 初始化该运算机对象
-                                calculator.init(ruleParamJson, getRuntimeContext(), preSelectedCrowd);
+                                calculator.init(ruleParamJson, getRuntimeContext());
                             }
                             // 将初始化好的规则的运算机对象，放入广播状态
                             calculatorHashMap.put(ruleId, calculator);
 
-                            log.warn("新增或修改了一个规则:{},所属模型:{}", ruleId, ruleModelId);
+                            log.warn("新增或修改了一个规则:{},所属模型:{}",ruleId,ruleModelId);
 
 
                         } else if ("-D".equals(op) || onlineStatus != 2) {
                             calculatorHashMap.remove(ruleId);
-                            log.warn("删除或下线了一个规则:{},所属模型:{}", ruleId, ruleModelId);
+                            log.warn("删除或下线了一个规则:{},所属模型:{}",ruleId,ruleModelId);
                         }
 
                     }

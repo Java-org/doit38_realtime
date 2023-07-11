@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * 规则 2 :
  * 静态画像条件： active_level=2  AND gender=male
- * 动态画像条件： 规则上线后，依次发生过：[k, b ,c]行为序列
+ * 动态画像条件： 规则上线后，依次发生过：[x, y ,z,p]行为序列 ,3次以上
  * 触发条件： 发生 m 行为(  eventId=c,properties[p1]=v1 )
  */
 public class Rule2Calculator_x implements RuleCalculator{

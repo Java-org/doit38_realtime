@@ -1,4 +1,4 @@
-package cn.doitedu.demo6;
+package cn.doitedu.demo7;
 
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
@@ -7,7 +7,6 @@ import java.io.DataOutputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
-import java.sql.SQLException;
 
 /**
  * @Author: 深似海
@@ -19,7 +18,7 @@ import java.sql.SQLException;
  *   人工模拟，带预圈选人群的 规则定义
  *
  **/
-public class TestDemo6_RuleMetaMoni {
+public class TestDemo7_RuleMetaMoni {
 
     public static void main(String[] args) throws Exception {
 

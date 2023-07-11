@@ -10,7 +10,7 @@ Target Server Type    : MYSQL
 Target Server Version : 50738
 File Encoding         : 65001
 
-Date: 2023-06-16 14:12:57
+Date: 2023-06-16 18:31:27
 */
 
 SET FOREIGN_KEY_CHECKS=0;
@@ -26,5 +26,6 @@ CREATE TABLE `rule_meta` (
   `online_status` int(11) DEFAULT NULL,
   `pre_select_crowd` mediumblob,
   `dynamic_profile_history_end_time` bigint(20) DEFAULT NULL,
+  `calculator_code` mediumtext,
   PRIMARY KEY (`rule_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;

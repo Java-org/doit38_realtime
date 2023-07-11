@@ -1,4 +1,4 @@
-package cn.doitedu.demo9.groovy_demo;
+package cn.doitedu.demo10.groovy_demo;
 
 public interface Person {
     void set(int age,String name);

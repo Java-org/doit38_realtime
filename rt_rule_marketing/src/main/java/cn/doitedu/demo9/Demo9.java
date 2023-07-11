@@ -2,7 +2,6 @@ package cn.doitedu.demo9;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import groovy.lang.GroovyClassLoader;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -82,7 +81,6 @@ public class Demo9 {
                         "      online_status INT,      " +
                         "      pre_select_crowd BYTES,  " +
                         "      dynamic_profile_history_end_time BIGINT,  " +
-                        "      calculator_code STRING,  " +
                         "     PRIMARY KEY (rule_id) NOT ENFORCED  " +
                         "     ) WITH (                            " +
                         "     'connector' = 'mysql-cdc',          " +
@@ -102,12 +100,7 @@ public class Demo9 {
                 String ruleModelId = row.getFieldAs("rule_model_id");
                 String ruleParamJson = row.getFieldAs("rule_param_json");
                 int onlineStatus = row.getFieldAs("online_status");
-                // demo8新增： 历史截止点
                 Long dynamicProfileHistoryEndTime = row.getFieldAs("dynamic_profile_history_end_time");
-
-                // demo9新增： 规则运算机源代码
-                String calculatorCode = row.getFieldAs("calculator_code");
-
 
                 // demo6新增 : 取出预圈选的人群序列化字节
                 byte[] crowdBytes = row.getFieldAs("pre_select_crowd");
@@ -120,7 +113,7 @@ public class Demo9 {
                 RowKind kind = row.getKind();
                 String op = kind.shortString();
 
-                return new RuleMetaBean(op, ruleId, ruleModelId, ruleParamJson, onlineStatus, crowdBitmap, dynamicProfileHistoryEndTime,calculatorCode);
+                return new RuleMetaBean(op, ruleId, ruleModelId, ruleParamJson, onlineStatus, crowdBitmap, dynamicProfileHistoryEndTime);
             }
         });
 
@@ -140,8 +133,6 @@ public class Demo9 {
                     ListState<UserEvent> userEventsCache;
                     MapState<String, String> oldCalculators;
 
-                    GroovyClassLoader groovyClassLoader;
-
                     @Override
                     public void open(Configuration parameters) throws Exception {
                         // DEMO8新增： 用于缓存最近2分钟的用户明细
@@ -155,8 +146,6 @@ public class Demo9 {
                         // DEMO8新增： 用于记录哪些运算机已经不是新来的了
                         oldCalculators = getRuntimeContext().getMapState(new MapStateDescriptor<String, String>("old-calculators", String.class, String.class));
 
-                        // demo9新增： groovy类加载器
-                        groovyClassLoader = new GroovyClassLoader();
 
                     }
 
@@ -168,7 +157,7 @@ public class Demo9 {
                          */
                         ReadOnlyBroadcastState<String, RuleMetaBean> metaBeanBroadcastState = readOnlyContext.getBroadcastState(desc);
                         if (calculatorHashMap.size() == 0) {
-                            failoverRestore(metaBeanBroadcastState, calculatorHashMap, getRuntimeContext(),groovyClassLoader);
+                            failoverRestore(metaBeanBroadcastState, calculatorHashMap, getRuntimeContext());
                         }
 
                         // 遍历运算机池
@@ -213,7 +202,7 @@ public class Demo9 {
                         // 取到广播状态
                         BroadcastState<String, RuleMetaBean> metaBeanBroadcastState = context.getBroadcastState(desc);
                         if (calculatorHashMap.size() == 0) {
-                            failoverRestore(metaBeanBroadcastState, calculatorHashMap, getRuntimeContext(),groovyClassLoader);
+                            failoverRestore(metaBeanBroadcastState, calculatorHashMap, getRuntimeContext());
                         }
 
                         // 取出规则元数据中的各个字段
@@ -242,18 +231,34 @@ public class Demo9 {
                         if (("+I".equals(op) || "+U".equals(op)) && onlineStatus == 2) {
                             // 根据 本次注入的 新规则，所属的模型，构造该模型的运算机对象
                             RuleModelCalculator calculator = null;
+                            if ("model-001".equals(ruleModelId)) {
+                                calculator = new RuleModel1ModelCalculator();
+                                // 初始化该运算机对象
+                                calculator.init(ruleParamJson, getRuntimeContext(), preSelectedCrowd);
 
-                            // 从元数据bean中，取到规则的运算机类源代码
-                            String calculatorGroovyCode = ruleMetaBean.getCalculatorGroovyCode();
-                            // 动态编译加载
-                            Class aClass = groovyClassLoader.parseClass(calculatorGroovyCode);
-                            calculator = (RuleModelCalculator) aClass.newInstance();
-                            // 初始化该运算机对象
-                            calculator.init(ruleParamJson, getRuntimeContext(), preSelectedCrowd);
+                                // 将元数据 bean，放入广播状态
+                                metaBeanBroadcastState.put(ruleId, ruleMetaBean);
 
-                            // 将元数据 bean，放入广播状态
-                            metaBeanBroadcastState.put(ruleId, ruleMetaBean);
 
+                            } else if ("model-002".equals(ruleModelId)) {
+                                calculator = new RuleModel2ModelCalculator();
+                                // 初始化该运算机对象
+                                calculator.init(ruleParamJson, getRuntimeContext(), preSelectedCrowd);
+
+                                // 将元数据 bean，放入广播状态
+                                metaBeanBroadcastState.put(ruleId, ruleMetaBean);
+
+                            } else if ("model-003".equals(ruleModelId)) {
+
+                                calculator = new RuleModel3ModelCalculator();
+                                // 初始化该运算机对象
+                                calculator.init(ruleParamJson, getRuntimeContext(), preSelectedCrowd);
+
+                                // 将元数据 bean，放入广播状态
+                                metaBeanBroadcastState.put(ruleId, ruleMetaBean);
+
+
+                            }
                             // 将初始化好的规则的运算机对象，放入广播状态
                             calculatorHashMap.put(ruleId, calculator);
 
@@ -265,6 +270,7 @@ public class Demo9 {
 
                             // 从广播状态中 ，移除失效的 规则元数据
                             metaBeanBroadcastState.remove(ruleId);
+
 
                             log.warn("删除或下线了一个规则:{},所属模型:{}", ruleId, ruleModelId);
                         }
@@ -281,7 +287,7 @@ public class Demo9 {
 
     private static void failoverRestore(ReadOnlyBroadcastState<String, RuleMetaBean> metaBeanBroadcastState,
                                         ConcurrentHashMap<String, RuleModelCalculator> calculatorHashMap,
-                                        RuntimeContext runtimeContext,GroovyClassLoader groovyClassLoader) throws Exception {
+                                        RuntimeContext runtimeContext) throws Exception {
         Iterable<Map.Entry<String, RuleMetaBean>> entries = metaBeanBroadcastState.immutableEntries();
 
         for (Map.Entry<String, RuleMetaBean> entry : entries) {
@@ -293,16 +299,25 @@ public class Demo9 {
             Roaring64Bitmap preSelectedCrowd = metaBean.getPreSelectedCrowd();
 
             RuleModelCalculator calculator;
-            // 从元数据bean中，取到规则的运算机类源代码
-            String calculatorGroovyCode = metaBean.getCalculatorGroovyCode();
-            // 动态编译加载
-            Class aClass = groovyClassLoader.parseClass(calculatorGroovyCode);
-            calculator = (RuleModelCalculator) aClass.newInstance();
-            // 初始化该运算机对象
-            calculator.init(ruleParamJson, runtimeContext, preSelectedCrowd);
+            if ("model-001".equals(ruleModelId)) {
+                calculator = new RuleModel1ModelCalculator();
+                // 初始化该运算机对象
+                calculator.init(ruleParamJson, runtimeContext, preSelectedCrowd);
+                calculatorHashMap.put(ruleId, calculator);
 
-            // 将初始化好的规则的运算机对象，放入广播状态
-            calculatorHashMap.put(ruleId, calculator);
+            } else if ("model-002".equals(ruleModelId)) {
+                calculator = new RuleModel1ModelCalculator();
+                // 初始化该运算机对象
+                calculator.init(ruleParamJson, runtimeContext, preSelectedCrowd);
+                calculatorHashMap.put(ruleId, calculator);
+
+            } else if ("model-003".equals(ruleModelId)) {
+                calculator = new RuleModel3ModelCalculator();
+                // 初始化该运算机对象
+                calculator.init(ruleParamJson, runtimeContext, preSelectedCrowd);
+                calculatorHashMap.put(ruleId, calculator);
+
+            }
 
             log.warn("恢复了一个运算机,rule_id:{}, model_id:{} ", ruleId, ruleModelId);
         }

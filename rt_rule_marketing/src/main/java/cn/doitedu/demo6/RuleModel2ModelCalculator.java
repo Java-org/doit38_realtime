@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.util.Collector;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 import java.io.IOException;
 
@@ -12,9 +11,8 @@ public class RuleModel2ModelCalculator implements RuleModelCalculator {
 
     String eventId;
     JSONObject message;
-
     @Override
-    public void init(String ruleParamJson, RuntimeContext runtimeContext , Roaring64Bitmap preSelectCrowd) throws IOException {
+    public void init(String ruleParamJson, RuntimeContext runtimeContext) throws IOException {
         // {"rule_id":"rule-002","event_id":"x"}
         JSONObject jsonObject = JSON.parseObject(ruleParamJson);
         eventId = jsonObject.getString("event_id");
@@ -22,7 +20,6 @@ public class RuleModel2ModelCalculator implements RuleModelCalculator {
 
         message = new JSONObject();
         message.put("rule_id",ruleId);
-
 
     }
 

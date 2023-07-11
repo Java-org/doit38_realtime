@@ -19,8 +19,5 @@ public class RuleMetaBean {
     private int onlineStatus;
     // demo6新增的字段  : 预圈选人群
     private Roaring64Bitmap preSelectedCrowd;
-    // 跨时段的动态画像条件 历史值统计截止时间点
-    private Long dynamicProfileHistoryQueryEndTime;
-
 
 }
