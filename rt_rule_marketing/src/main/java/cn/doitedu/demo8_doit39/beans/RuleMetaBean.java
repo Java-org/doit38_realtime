@@ -1,4 +1,4 @@
-package cn.doitedu.demo6_doit39.beans;
+package cn.doitedu.demo8_doit39.beans;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,6 +20,7 @@ public class RuleMetaBean {
     private String paramJson;
     // 规则的管理状态
     private int status;
-
+    //
+    private Roaring64Bitmap targetUsers;
 
 }

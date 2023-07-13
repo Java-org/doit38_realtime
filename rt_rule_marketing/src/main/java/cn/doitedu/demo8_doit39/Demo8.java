@@ -1,8 +1,7 @@
-package cn.doitedu.demo7_doit39;
+package cn.doitedu.demo8_doit39;
 
-
-import cn.doitedu.demo7_doit39.beans.RuleMetaBean;
-import cn.doitedu.demo7_doit39.beans.UserEvent;
+import cn.doitedu.demo8_doit39.beans.RuleMetaBean;
+import cn.doitedu.demo8_doit39.beans.UserEvent;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -21,7 +20,9 @@ import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.roaringbitmap.longlong.Roaring64Bitmap;
 
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,7 +38,7 @@ import java.util.Map;
  *
  **/
 @Slf4j
-public class Demo7 {
+public class Demo8 {
     public static void main(String[] args) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -71,6 +72,7 @@ public class Demo7 {
                         "    rule_id string,                       " +
                         "    param_json string,                    " +
                         "    status  int,                          " +
+                        "    target_users  bytes,                  " +
                         "    PRIMARY KEY (rule_id) NOT ENFORCED    " +
                         " ) WITH (                                 " +
                         " 'connector' = 'mysql-cdc'   ,            " +
@@ -91,11 +93,19 @@ public class Demo7 {
 
                 RowKind kind = row.getKind();
                 int operateType = kind.toByteValue();
+
                 String ruleId = row.getFieldAs("rule_id");
                 String paramJson = row.getFieldAs("param_json");
                 int status = row.getFieldAs("status");
 
-                return new RuleMetaBean(operateType, ruleId, paramJson, status);
+                // 取出数据row中的bitmap
+                byte[]  bitmapBytes = row.getFieldAs("target_users");
+
+                // 反序列这个字节，成为一个bitmap对象
+                Roaring64Bitmap targetUsers = Roaring64Bitmap.bitmapOf();
+                targetUsers.deserialize(ByteBuffer.wrap(bitmapBytes));
+
+                return new RuleMetaBean(operateType, ruleId, paramJson, status,targetUsers);
             }
         });
 
@@ -123,7 +133,6 @@ public class Demo7 {
                     RuleCalculator ruleCalculator = entry.getValue();
                     ruleCalculator.calculate(event,out);
                 }
-
             }
 
             /**
@@ -143,11 +152,9 @@ public class Demo7 {
                     // 构造运算机
                     RuleModel_1_Calculator ruleCalculator = new RuleModel_1_Calculator();
                     // 初始化运算机
-                    ruleCalculator.init(paramJson,getRuntimeContext());
+                    ruleCalculator.init(paramJson,getRuntimeContext(),ruleMetaBean.getTargetUsers());
                     // 将运算机放入运算机池
                     calculatorHashMap.put(ruleMetaBean.getRuleId(), ruleCalculator);
-                    //calculatorMapState.put(ruleMetaBean.getRuleId(), ruleCalculator);
-                    //pool.put(ruleMetaBean.getRuleId(), ruleCalculator);
 
                     log.warn("规则上线完成,规则id:{},此刻，运算机池的size：{}",ruleMetaBean.getRuleId(),calculatorHashMap.size());
                 }

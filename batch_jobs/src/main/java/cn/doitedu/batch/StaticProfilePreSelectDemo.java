@@ -29,19 +29,21 @@ public class StaticProfilePreSelectDemo {
         );
 
         // 用于查询参数封装的对象
-        SearchRequest request = new SearchRequest("doit38_profile");
+        SearchRequest request = new SearchRequest("doit39_profile");
 
         /**
          * 单一条件查询
          */
         // 定义一个 范围查询条件
-        RangeQueryBuilder tag02 = QueryBuilders.rangeQuery("tag0101").gt(250.0);
-        MatchQueryBuilder tag0301 = QueryBuilders.matchQuery("tag0301", "黄河");
+        RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery("tag0101").gte(300);
+        MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("tag0301", "中国");
+        MatchQueryBuilder matchQueryBuilder1 = QueryBuilders.matchQuery("tag0203", "江苏省");
 
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
         boolQueryBuilder
-                .must(tag02);
-                //.must(tag0301);
+                .must(rangeQueryBuilder)
+                .must(matchQueryBuilder)
+                .must(matchQueryBuilder1);
 
 
         // 将查询条件参数，封装成查询请求
@@ -53,10 +55,11 @@ public class StaticProfilePreSelectDemo {
 
         /// 遍历搜索结果，将返回id放入bitmap
         response.getHits().forEach(ht-> {
+            System.out.println(Integer.parseInt(ht.getId()));
             tagSelectUsersBitmap.add(Integer.parseInt(ht.getId()));
         });
 
-        System.out.println(tagSelectUsersBitmap.toString());
+        /*System.out.println(tagSelectUsersBitmap.toString());*/
 
         System.out.println("---------------分割线----------------");
 
