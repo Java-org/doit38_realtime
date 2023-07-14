@@ -1,0 +1,24 @@
+{
+  "rule_id":"rule_2_1",
+  "offline_profile":[
+    {
+      "tag_name":"active_level",
+      "compare_type":"=",
+      "tag_value":[2]
+    },
+    {
+      "tag_name":"gender",
+      "compare_type":"=",
+      "tag_value":["male"]
+    }
+  ],
+  "online_profile":{
+    "event_seq":["k","b","c"],
+    "seq_count":3
+  },
+  "fire_event":{
+    "event_id":"share",
+    "pro_name":"share_method",
+    "pro_value":"qq"
+  }
+}

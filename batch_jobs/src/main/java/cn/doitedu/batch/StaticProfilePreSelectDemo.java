@@ -35,15 +35,15 @@ public class StaticProfilePreSelectDemo {
          * 单一条件查询
          */
         // 定义一个 范围查询条件
-        RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery("tag0101").gte(300);
+        RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery("tag0101").gt(300);
         MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("tag0301", "中国");
-        MatchQueryBuilder matchQueryBuilder1 = QueryBuilders.matchQuery("tag0203", "江苏省");
+        /*MatchQueryBuilder matchQueryBuilder1 = QueryBuilders.matchQuery("tag0203", "江苏省");*/
 
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
         boolQueryBuilder
                 .must(rangeQueryBuilder)
-                .must(matchQueryBuilder)
-                .must(matchQueryBuilder1);
+                .must(matchQueryBuilder);
+                /*.must(matchQueryBuilder1);*/
 
 
         // 将查询条件参数，封装成查询请求
