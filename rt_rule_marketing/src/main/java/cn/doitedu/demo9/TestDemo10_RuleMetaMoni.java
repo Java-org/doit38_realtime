@@ -22,7 +22,7 @@ import java.sql.SQLException;
  *   人工模拟，带预圈选人群的 规则定义
  *
  **/
-public class TestDemo9_RuleMetaMoni {
+public class TestDemo10_RuleMetaMoni {
 
     @Test
     public  void model1Rule() throws SQLException, IOException {

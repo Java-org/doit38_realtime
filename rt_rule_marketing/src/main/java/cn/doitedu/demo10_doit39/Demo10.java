@@ -1,7 +1,7 @@
-package cn.doitedu.demo9_doit39;
+package cn.doitedu.demo10_doit39;
 
-import cn.doitedu.demo9_doit39.beans.UserEvent;
-import cn.doitedu.demo9_doit39.beans.RuleMetaBean;
+import cn.doitedu.demo10_doit39.beans.RuleMetaBean;
+import cn.doitedu.demo10_doit39.beans.UserEvent;
 import com.alibaba.fastjson.JSON;
 import groovy.lang.GroovyClassLoader;
 import lombok.extern.slf4j.Slf4j;
@@ -10,9 +10,10 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.api.common.state.BroadcastState;
-import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.api.common.state.ReadOnlyBroadcastState;
+import org.apache.flink.api.common.state.*;
+import org.apache.flink.api.common.time.Time;
+import org.apache.flink.api.common.typeinfo.TypeHint;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
@@ -31,7 +32,9 @@ import org.roaringbitmap.longlong.Roaring64Bitmap;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @Author: 深似海
@@ -44,7 +47,7 @@ import java.util.Map;
  * 可以实现固定规则模型下的  规则动态上下线
  **/
 @Slf4j
-public class Demo9 {
+public class Demo10 {
     public static void main(String[] args) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -130,10 +133,23 @@ public class Demo9 {
                 new KeyedBroadcastProcessFunction<Long, UserEvent, RuleMetaBean, String>() {
                     HashMap<String, RuleCalculator> calculatorHashMap = new HashMap<>();
                     GroovyClassLoader groovyClassLoader;
+                    ListState<UserEvent> recentEventState;
+                    ValueState<Set<String>> ruleIdSetState;
 
                     @Override
                     public void open(Configuration parameters) throws Exception {
                         groovyClassLoader = new GroovyClassLoader();
+
+                        // 申请一个List状态
+                        ListStateDescriptor<UserEvent> listStateDescriptor = new ListStateDescriptor<>("recent_events", UserEvent.class);
+                        listStateDescriptor.enableTimeToLive(StateTtlConfig.newBuilder(Time.seconds(10)).build());
+
+                        recentEventState = getRuntimeContext().getListState(listStateDescriptor);
+
+                        // 申请一个状态，用来辨别运算机是否新上线的
+                        ruleIdSetState = getRuntimeContext().getState(new ValueStateDescriptor<Set<String>>("ruleIdSet", TypeInformation.of(new TypeHint<Set<String>>() {
+                        })));
+
                     }
 
                     /**
@@ -141,6 +157,12 @@ public class Demo9 {
                      */
                     @Override
                     public void processElement(UserEvent event, KeyedBroadcastProcessFunction<Long, UserEvent, RuleMetaBean, String>.ReadOnlyContext ctx, Collector<String> out) throws Exception {
+
+                        Set<String> oldRuleIdSet = ruleIdSetState.value();
+                        if(oldRuleIdSet == null) {
+                            oldRuleIdSet = new HashSet<>();
+                            ruleIdSetState.update(oldRuleIdSet);
+                        }
 
                         ReadOnlyBroadcastState<String, RuleMetaBean> broadcastState = ctx.getBroadcastState(bc_desc);
 
@@ -159,15 +181,28 @@ public class Demo9 {
                         }
 
                         for (Map.Entry<String, RuleCalculator> entry : calculatorHashMap.entrySet()) {
+                            String ruleId = entry.getKey();
                             RuleCalculator ruleCalculator = entry.getValue();
 
-                            // 人造异常,用于测试运算机池的故障恢复
-                            if(event.getEvent_id().equals("error") && RandomUtils.nextInt(1,10)% 3 == 0){
-                                throw new RuntimeException("人造异常发生了......");
+                            // 判断当前遍历到的运算机，是否是一个"新上线的运算机"且需要处理 recent 数据
+                            if( !ruleIdSetState.value().contains(ruleId)){
+                                // 将 recent 数据，逐个喂给该运算机去处理
+                                for (UserEvent userEvent : recentEventState.get()) {
+                                    ruleCalculator.calculate(userEvent,out);
+                                }
+
+                                // 将本新运算机，加入 老规则集合
+                                ruleIdSetState.value().add(ruleId);
+
                             }
 
+                            // 处理本次收到的event
                             ruleCalculator.calculate(event, out);
                         }
+
+                        // 将本次收到的行为数据，缓存到10秒状态中
+                        recentEventState.add(event);
+
                     }
 
                     /**
