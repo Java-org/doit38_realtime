@@ -28,4 +28,8 @@ public class RuleMetaBean {
     //
     private Roaring64Bitmap targetUsers;
 
+    // 规则条件的历史时段统计截止时间点
+    private long conditionHistoryValueEndTime;
+
+
 }

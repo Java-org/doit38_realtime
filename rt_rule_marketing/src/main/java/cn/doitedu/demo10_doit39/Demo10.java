@@ -35,6 +35,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @Author: 深似海
@@ -83,6 +85,7 @@ public class Demo10 {
                         "    calculator_source_code string,        " +
                         "    status  int,                          " +
                         "    target_users  bytes,                  " +
+                        "    history_value_end_time  bigint,       " +
                         "    PRIMARY KEY (rule_id) NOT ENFORCED    " +
                         " ) WITH (                                 " +
                         " 'connector' = 'mysql-cdc'   ,            " +
@@ -109,6 +112,9 @@ public class Demo10 {
                 int status = row.getFieldAs("status");
                 String calculatorSourceCode = row.getFieldAs("calculator_source_code");
 
+                // 取历史值查询范围截止时间点
+                long historyValueEndTime = row.getFieldAs("history_value_end_time");
+
                 // 取出数据row中的bitmap
                 byte[] bitmapBytes = row.getFieldAs("target_users");
 
@@ -116,7 +122,7 @@ public class Demo10 {
                 Roaring64Bitmap targetUsers = Roaring64Bitmap.bitmapOf();
                 targetUsers.deserialize(ByteBuffer.wrap(bitmapBytes));
 
-                return new RuleMetaBean(operateType, ruleId, paramJson, calculatorSourceCode, status, targetUsers);
+                return new RuleMetaBean(operateType, ruleId, paramJson, calculatorSourceCode, status, targetUsers,historyValueEndTime);
             }
         });
 
@@ -131,10 +137,14 @@ public class Demo10 {
         // 对连接好的两个流，执行process
         connected.process(
                 new KeyedBroadcastProcessFunction<Long, UserEvent, RuleMetaBean, String>() {
-                    HashMap<String, RuleCalculator> calculatorHashMap = new HashMap<>();
+
+                    // 运算机池这个hashmap会被processBroadcastElement方法和processElement方法两个线程并发使用，所以需要一个线程安全的ConcurrentHashMap
+                    ConcurrentHashMap<String, RuleCalculator> calculatorHashMap = new ConcurrentHashMap<>();
+
                     GroovyClassLoader groovyClassLoader;
                     ListState<UserEvent> recentEventState;
                     ValueState<Set<String>> ruleIdSetState;
+
 
                     @Override
                     public void open(Configuration parameters) throws Exception {
@@ -259,8 +269,6 @@ public class Demo10 {
                     }
 
                     private RuleCalculator generateRuleCalculator(RuleMetaBean ruleMetaBean, GroovyClassLoader groovyClassLoader, RuntimeContext runtimeContext) throws InstantiationException, IllegalAccessException, IOException {
-                        String paramJson = ruleMetaBean.getParamJson();
-
                         // 构造运算机
                         // RuleModel_1_Calculator ruleCalculator = new RuleModel_1_Calculator();
 
@@ -273,7 +281,7 @@ public class Demo10 {
                         RuleCalculator ruleCalculator = (RuleCalculator) aClass.newInstance();
 
                         // 初始化运算机
-                        ruleCalculator.init(paramJson, runtimeContext, ruleMetaBean.getTargetUsers());
+                        ruleCalculator.init(ruleMetaBean, runtimeContext);
                         return ruleCalculator;
                     }
 
