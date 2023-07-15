@@ -15,6 +15,10 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.connector.base.DeliveryGuarantee;
+import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
+import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchemaBuilder;
+import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.CheckpointingMode;
@@ -122,7 +126,7 @@ public class Demo10 {
                 Roaring64Bitmap targetUsers = Roaring64Bitmap.bitmapOf();
                 targetUsers.deserialize(ByteBuffer.wrap(bitmapBytes));
 
-                return new RuleMetaBean(operateType, ruleId, paramJson, calculatorSourceCode, status, targetUsers,historyValueEndTime);
+                return new RuleMetaBean(operateType, ruleId, paramJson, calculatorSourceCode, status, targetUsers, historyValueEndTime);
             }
         });
 
@@ -135,7 +139,7 @@ public class Demo10 {
         BroadcastConnectedStream<UserEvent, RuleMetaBean> connected = keyedEventStream.connect(ruleMetaBs);
 
         // 对连接好的两个流，执行process
-        connected.process(
+        SingleOutputStreamOperator<String> result = connected.process(
                 new KeyedBroadcastProcessFunction<Long, UserEvent, RuleMetaBean, String>() {
 
                     // 运算机池这个hashmap会被processBroadcastElement方法和processElement方法两个线程并发使用，所以需要一个线程安全的ConcurrentHashMap
@@ -169,7 +173,7 @@ public class Demo10 {
                     public void processElement(UserEvent event, KeyedBroadcastProcessFunction<Long, UserEvent, RuleMetaBean, String>.ReadOnlyContext ctx, Collector<String> out) throws Exception {
 
                         Set<String> oldRuleIdSet = ruleIdSetState.value();
-                        if(oldRuleIdSet == null) {
+                        if (oldRuleIdSet == null) {
                             oldRuleIdSet = new HashSet<>();
                             ruleIdSetState.update(oldRuleIdSet);
                         }
@@ -184,9 +188,9 @@ public class Demo10 {
                                 RuleMetaBean ruleMetaBean = immutableEntry.getValue();
                                 // 根据这条规则元数据bean，恢复出一个运算机
                                 RuleCalculator ruleCalculator = generateRuleCalculator(ruleMetaBean, groovyClassLoader, getRuntimeContext());
-                                log.warn("在processElement中,恢复了一个规则运算机,ruleId:{}",ruleId);
+                                log.warn("在processElement中,恢复了一个规则运算机,ruleId:{}", ruleId);
                                 // 把运算机放入运算机池
-                                calculatorHashMap.put(ruleId,ruleCalculator);
+                                calculatorHashMap.put(ruleId, ruleCalculator);
                             }
                         }
 
@@ -195,10 +199,10 @@ public class Demo10 {
                             RuleCalculator ruleCalculator = entry.getValue();
 
                             // 判断当前遍历到的运算机，是否是一个"新上线的运算机"且需要处理 recent 数据
-                            if( !ruleIdSetState.value().contains(ruleId)){
+                            if (!ruleIdSetState.value().contains(ruleId)) {
                                 // 将 recent 数据，逐个喂给该运算机去处理
                                 for (UserEvent userEvent : recentEventState.get()) {
-                                    ruleCalculator.calculate(userEvent,out);
+                                    ruleCalculator.calculate(userEvent, out);
                                 }
 
                                 // 将本新运算机，加入 老规则集合
@@ -230,9 +234,9 @@ public class Demo10 {
                                 RuleMetaBean metaBean = immutableEntry.getValue();
                                 // 根据这条规则元数据bean，恢复出一个运算机
                                 RuleCalculator ruleCalculator = generateRuleCalculator(metaBean, groovyClassLoader, getRuntimeContext());
-                                log.warn("在processBroadcastElement中,恢复了一个规则运算机,ruleId:{}",ruleId);
+                                log.warn("在processBroadcastElement中,恢复了一个规则运算机,ruleId:{}", ruleId);
                                 // 把运算机放入运算机池
-                                calculatorHashMap.put(ruleId,ruleCalculator);
+                                calculatorHashMap.put(ruleId, ruleCalculator);
                             }
                         }
 
@@ -286,7 +290,20 @@ public class Demo10 {
                     }
 
 
-                }).print();
+                });
+
+
+        KafkaSink<String> kafkaSink = KafkaSink.<String>builder()
+                .setBootstrapServers("doitedu:9092")
+                .setRecordSerializer(KafkaRecordSerializationSchema.builder()
+                        .setTopic("rule-match-messages")
+                        .setValueSerializationSchema(new SimpleStringSchema())
+                        .build()
+                )
+                .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+                .build();
+        result.sinkTo(kafkaSink);
+
 
         env.execute();
     }
