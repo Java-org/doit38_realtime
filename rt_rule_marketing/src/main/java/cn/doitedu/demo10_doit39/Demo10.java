@@ -61,6 +61,7 @@ public class Demo10 {
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt");
         env.setParallelism(1);
 
+
         StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env);
 
 

@@ -105,7 +105,7 @@ public class Job4_PVUV_3 {
                         "           window_start                                                                                 " +
                         "          ,window_end                                                                                   " +
                         "          ,page_type                                                                                    " +
-                        "          ,regexp_extract(properties['url'],'^(.*?\\.html).*?') as page                                 " +
+                        "          ,regexp_extract(properties['url'],'^(.*?\\.html).*?') as page_url                              " +
                         "          ,count(distinct user_id) as uv_amt                                                            " +
                         "         FROM TABLE(                                                                                    " +
                         "           TUMBLE(TABLE dwd_kafka,DESCRIPTOR(row_time),INTERVAL '5' MINUTE)                             " +
