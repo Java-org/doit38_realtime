@@ -1,38 +1,12 @@
 {
-  "took": 43,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
+  "rule_id": "rule-5",
+  "offline_profile": [],
+  "online_history_profile": {
+    "event_id": "w",
+    "start_time": "2023-07-01 00:00:00",
+    "end_time": "9999-12-31 00:00:00",
+    "min_count": 3,
+    "c_id": 1
   },
-  "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
-    "max_score": 1.0,
-    "hits": [
-      {
-        "_index": "doit39_profile",
-        "_type": "_doc",
-        "_id": "5",
-        "_score": 1.0,
-        "_source": {
-          "user_id": 5,
-          "tag0101": 272.3,
-          "tag0102": 720.5,
-          "tag0103": 65.2,
-          "tag0104": 15,
-          "tag0201": "female",
-          "tag0202": 28,
-          "tag0203": "浙江省",
-          "tag0204": "杭州市",
-          "tag0205": "蛇妖厂",
-          "tag0301": "北冥有鱼其名为鲲|鲲之大不知其几千里也|化而为鸟其名为鹏"
-        }
-      }
-    ]
-  }
+  "fire_event_id": "x"
 }

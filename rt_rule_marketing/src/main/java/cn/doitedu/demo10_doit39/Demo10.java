@@ -21,6 +21,8 @@ import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchemaBuild
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
+import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
+import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -59,7 +61,10 @@ public class Demo10 {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.enableCheckpointing(6000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/d:/ckpt");
-        env.setParallelism(1);
+        env.setParallelism(2);
+
+
+        env.setStateBackend(new EmbeddedRocksDBStateBackend(true));
 
 
         StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env);
@@ -67,7 +72,7 @@ public class Demo10 {
 
         KafkaSource<String> source = KafkaSource.<String>builder()
                 .setBootstrapServers("doitedu:9092")
-                .setStartingOffsets(OffsetsInitializer.committedOffsets(OffsetResetStrategy.LATEST))
+                .setStartingOffsets(OffsetsInitializer.latest())
                 .setGroupId("doitedu-gyy")
                 .setTopics("dwd_events")
                 .setValueOnlyDeserializer(new SimpleStringSchema())
@@ -291,7 +296,8 @@ public class Demo10 {
                     }
 
 
-                });
+                })
+                .disableChaining();
 
 
         KafkaSink<String> kafkaSink = KafkaSink.<String>builder()
